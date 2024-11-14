@@ -63,9 +63,9 @@ typedef unsigned long u64_t;
 
 #include "includes/md5.h"
 #include "includes/md5_test_data.h"
-#include "includes/md5_cpu.h"
+#include "includes/cpu/md5_cpu.h"
 #include "includes/avx/md5_cpu_avx.h"
-//#include "md5_cpu_avx2.h"
+#include "includes/avx2/md5_cpu_avx2.h"
 #include "includes/md5_cpu_neon.h"
 #if USE_CUDA > 0
 # include "includes/cuda_driver_api_utilities.h"
@@ -127,16 +127,16 @@ static void alarm_signal_handler(int dummy)
   stop_request = 1;
 }
 
-#include "includes/deti_coins_cpu_search.h"
+#include "includes/cpu/deti_coins_cpu_search.h"
 //#include "deti_coins_cpu_special_search.h"
 
 //#include "search_utilities.h"
-//#ifdef MD5_CPU_AVX
-//# include "deti_coins_cpu_avx_search.h"
-//#endif
-//#ifdef MD5_CPU_AVX2
-//# include "deti_coins_cpu_avx2_search.h"
-//#endif
+#ifdef MD5_CPU_AVX
+# include "includes/avx/deti_coins_cpu_avx_search.h"
+#endif
+#ifdef MD5_CPU_AVX2
+# include "includes/avx2/deti_coins_cpu_avx2_search.h"
+#endif
 //#ifdef MD5_CPU_NEON
 //# include "deti_coins_cpu_neon_search.h"
 //#endif
