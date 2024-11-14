@@ -27,8 +27,8 @@ CUDA_ARCH = sm_75
 #
 SRC       = deti_coins.c
 H_FILES   = includes/cpu_utilities.h
-H_FILES  += includes/md5.h includes/md5_test_data.h includes/md5_cpu.h includes/avx/md5_cpu_avx.h includes/md5_cpu_neon.h
-H_FILES  += includes/deti_coins_vault.h includes/deti_coins_cpu_search.h
+H_FILES  += includes/md5.h includes/md5_test_data.h includes/cpu/md5_cpu.h includes/avx/md5_cpu_avx.h includes/md5_cpu_neon.h
+H_FILES  += includes/deti_coins_vault.h includes/cpu/deti_coins_cpu_search.h
 C_FILES   = includes/cuda_driver_api_utilities.h includes/md5_cuda.h
 
 
