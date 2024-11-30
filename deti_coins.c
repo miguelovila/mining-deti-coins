@@ -19,23 +19,21 @@
 # error "this code requires a little-endian processor"
 #endif
 
+#ifndef DEBUG
+# define DEBUG 0
+#endif
+
 #ifndef USE_CUDA
 # define USE_CUDA 0
 #endif
 
-
-//
 // unsigned integer data types and some useful functions (in cpu_utilities.h)
-//
-
 typedef unsigned char u08_t;
 typedef unsigned  int u32_t;
 typedef unsigned long u64_t;
 
-#include "includes/cpu_utilities.h"
+#include "includes/cpu/cpu_utilities.h"
 
-
-//
 // MD5 hash implementations and respective tests
 //
 // Intel Core i7-5500U CPU @ 2.40GHz, turbo boosted to 3.00GHz
@@ -56,17 +54,22 @@ typedef unsigned long u64_t;
 // Mac Mini M2 high-performance "Avalanche" core (3.49GHz)
 //   time per md5 hash ( cpu):  84.959ns  85.057ns
 //   time per md5 hash (neon):  40.114ns  40.144ns
+//
 // Mac Mini M2 energy-efficient "Blizzard" core (2.42GHz)
 //   time per md5 hash ( cpu): 144.973ns 145.190ns
 //   time per md5 hash (neon):  76.488ns  76.585ns
-//
 
 #include "includes/md5.h"
 #include "includes/md5_test_data.h"
+
 #include "includes/cpu/md5_cpu.h"
 #include "includes/avx/md5_cpu_avx.h"
 #include "includes/avx2/md5_cpu_avx2.h"
+
+#include "includes/avx2/cpu_avx2_utilities.h"
+
 #include "includes/md5_cpu_neon.h"
+
 #if USE_CUDA > 0
 # include "includes/cuda_driver_api_utilities.h"
 # include "includes/md5_cuda.h"
@@ -74,54 +77,34 @@ typedef unsigned long u64_t;
 
 static void all_md5_tests(void)
 {
-  //
   // make random test data
-  //
   make_random_md5_test_data();
-  //
   // any: md5_cpu() tests
-  //
   test_md5_cpu();
-  //
   // intel/amd: md5_cpu_avx() tests --- comparison with the hash data computed by test_cpu_md5()
-  //
 #ifdef MD5_CPU_AVX
   test_md5_cpu_avx();
 #endif
-  //
   // intel/amd: md5_cpu_avx2() tests --- comparison with the hash data computed by test_cpu_md5()
-  //
 #ifdef MD5_CPU_AVX2
   test_md5_cpu_avx2();
 #endif
-  //
   // arm: md5_cpu_neon() tests --- comparison with the hash data computed by test_cpu_md5()
-  //
 #ifdef MD5_CPU_NEON
   test_md5_cpu_neon();
 #endif
-  //
   // cuda: md5_cuda() tests --- comparison with the hash data computed by test_cpu_md5()
-  //
 #ifdef MD5_CUDA
   test_md5_cuda();
 #endif
 }
 
-
-//
 // saving are reporting DETI coins
-//
-
 #include "includes/deti_coins_vault.h"
 
 
-//
 // search for DETI coins
-//
-
 static volatile int stop_request;
-
 static void alarm_signal_handler(int dummy)
 {
   stop_request = 1;
@@ -136,7 +119,7 @@ static void alarm_signal_handler(int dummy)
 #endif
 #ifdef MD5_CPU_AVX2
 # include "includes/avx2/deti_coins_cpu_avx2_search.h"
-#include "includes/avx2/deti_coins_cpu_avx2_omp_search.h"
+# include "includes/avx2/deti_coins_cpu_avx2_omp_search.h"
 #endif
 //#ifdef MD5_CPU_NEON
 //# include "deti_coins_cpu_neon_search.h"
@@ -144,7 +127,6 @@ static void alarm_signal_handler(int dummy)
 //#if USE_CUDA > 0
 //# include "deti_coins_cuda_search.h"
 //#endif
-
 
 //
 // main program
@@ -154,14 +136,19 @@ int main(int argc,char **argv)
 {
   u32_t seconds,n_random_words;
 
+
+  #if DEBUG > 0
+    printf("ATTENTION: This is a DEBUG build, it will be SLOW :ATTENTION\n");
+  #endif 
+
   //
   // correctness tests (-t command line option)
   //
   if(argc == 2 && argv[1][0] == '-' && argv[1][1] == 't')
   {
-#ifdef SEARCH_UTILITIES
-    test_next_value_to_try_ascii(); // this will help warming up (turbo boost) the processor!
-#endif
+    #ifdef SEARCH_UTILITIES
+      test_next_value_to_try_ascii(); // this will help warming up (turbo boost) the processor!
+    #endif
     all_md5_tests();
     return 0;
   }
