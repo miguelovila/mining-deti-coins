@@ -16,7 +16,8 @@
 
 typedef unsigned int u32_t;
 
-#include "md5.h"
+#include "includes/md5.h"
+#include <cuda_runtime.h>
 
 //
 // the nvcc compiler stores x[] and state[] in registers (constant indices!)
