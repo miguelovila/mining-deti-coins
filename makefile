@@ -5,8 +5,7 @@
 #
 # CUDA installation directory --- /usr/local/cuda or $(CUDA_HOME)
 #
-CUDA_DIR = /usr/local/cuda
-
+CUDA_DIR = /usr/local/cuda-12.6
 #
 # OpenCL installation directory (for a NVidia graphics card, sama as CUDA)
 #
@@ -19,27 +18,20 @@ OPENCL_DIR = $(CUDA_DIR)
 #   RTX A6000 Ada --------- sm_86
 #   RTX 4070 -------------- sm_89
 #
-CUDA_ARCH = sm_75
+CUDA_ARCH = sm_86
 
-
-#
-# source code files
-#
+# Source and header files
 SRC       = deti_coins.c
 H_FILES   = includes/cpu_utilities.h
 H_FILES  += includes/md5.h includes/md5_test_data.h includes/cpu/md5_cpu.h includes/avx/md5_cpu_avx.h includes/md5_cpu_neon.h
-H_FILES  += includes/deti_coins_vault.h includes/cpu/deti_coins_cpu_search.h
+H_FILES  += includes/deti_coins_vault.h includes/cpu/deti_coins_cpu_search.h includes/cu/deti_coins_cuda_search.h 
 C_FILES   = includes/cuda_driver_api_utilities.h includes/md5_cuda.h
-
 
 #
 # clean up
 #
 clean:
-	rm -f a.out
-	rm -f deti_coins_intel
-	rm -f deti_coins_apple
-	rm -f deti_coins_intel_cuda md5_cuda_kernel.cubin deti_coins_cuda_kernel_search.cubin
+	rm -f *.o *.cubin deti_coins_intel_cuda deti_coins_intel deti_coins_apple
 
 
 #
@@ -48,22 +40,26 @@ clean:
 deti_coins_intel:	$(SRC) $(H_FILES)
 	cc -Wall -O2 -fopenmp -mavx2 -DUSE_CUDA=0 $(SRC) -o deti_coins_intel
 
-
 #
 # compilation for Apple silicon without CUDA
 #
-deti_coins_apple:	$(SRC) $(H_FILES)
+deti_coins_apple: $(SRC) $(H_FILES)
 	cc -Wall -O2 -DUSE_CUDA=0 $(SRC) -o deti_coins_apple
 
 
 #
 # compile for Intel/AMD processors with CUDA
 #
-deti_coins_intel_cuda:	$(SRC) $(H_FILES) $(C_FILES) md5_cuda_kernel.cubin
-	cc -Wall -O2 -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include $(SRC) -o deti_coins_intel_cuda -L$(CUDA_DIR)/lib64 -lcuda
+deti_coins_intel_cuda: deti_coins.o md5_cuda_kernel.cubin deti_coins_cuda_kernel_search.cubin
+	cc -Wall -O2 -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include deti_coins.o -o deti_coins_intel_cuda \
+		-L$(CUDA_DIR)/lib64 -lcuda
 
-md5_cuda_kernel.cubin:			md5.h md5_cuda_kernel.cu
+deti_coins.o: $(SRC) $(H_FILES)
+	cc -Wall -O2 -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include -c $(SRC) -o deti_coins.o
+
+md5_cuda_kernel.cubin: includes/md5.h md5_cuda_kernel.cu
 	nvcc -arch=$(CUDA_ARCH) --compiler-options -O2,-Wall -I$(CUDA_DIR)/include --cubin md5_cuda_kernel.cu -o md5_cuda_kernel.cubin
 
-deti_coins_cuda_kernel_search.cubin:	md5.h deti_coins_cuda_kernel_search.cu
-	nvcc -arch=$(CUDA_ARCH) --compiler-options -O2,-Wall -I$(CUDA_DIR)/include --cubin deti_coins_cuda_kernel_search.cu -o deti_coins_cuda_kernel_search.cubin
+deti_coins_cuda_kernel_search.cubin: includes/md5.h includes/cu/deti_coins_cuda_search.cu
+	nvcc -arch=$(CUDA_ARCH) --compiler-options -O2,-Wall -I$(CUDA_DIR)/include --cubin includes/cu/deti_coins_cuda_search.cu -o deti_coins_cuda_kernel_search.cubin
+
