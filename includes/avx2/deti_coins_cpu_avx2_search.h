@@ -3,14 +3,86 @@
 
 #include <string.h>
 
+/**
+ *  Print lanes
+ *
+ *  Print the 8 lanes of the coin data in a human-readable format
+ *  for debugging purposes. 😅
+ */
+static void print_lanes(u32_t *coin_data)
+{
+    printf("\nLane Visualization (8 parallel attempts):\n");
+    printf("     00   01   02   03   04   05   06   07  \n");
+    printf("    ---- ---- ---- ---- ---- ---- ---- ---- \n");
+
+    for (int word = 0; word < 13; word++)
+    {
+        printf("%2d: ", word);
+        for (int lane = 0; lane < 8; lane++)
+        {
+            u32_t value = coin_data[word * 8 + lane];
+            for (int byte = 0; byte < 4; byte++)
+            {
+                char c = ((u08_t *)&value)[byte];
+                if (c >= 32 && c <= 126)
+                    printf("%c", c);
+                else if (c == '\n')
+                    printf("\\n");
+            }
+            printf(" ");
+        }
+        printf("\n");
+    }
+}
+
+static void print_lane(u32_t *coin_data, u32_t lane)
+{
+    printf("\nLane Visualization:\n");
+    printf("  %2d\n", lane);
+    printf(" ---- \n");
+
+    for (int word = 0; word < 13; word++)
+    {
+        printf("%2d: ", word);
+        u32_t value = coin_data[word * 8 + lane];
+        for (int byte = 0; byte < 4; byte++)
+        {
+            char c = ((u08_t *)&value)[byte];
+            if (c >= 32 && c <= 126)
+                printf("%c", c);
+            else if (c == '\n')
+                printf("\\n");
+        }
+        printf("\n");
+    }
+}
+
+/**
+ * Search for DETI coins using AVX2 instructions
+ *
+ *  This function searches for DETI coins using AVX2 instructions.
+ *  The search is performed in parallel for 8 lanes.
+ *
+ *  n_random_words: number of random 4-byte words to fill. [1 - 9]
+ */
 static void deti_coins_cpu_avx2_search(u32_t n_random_words)
 {
-    static u32_t coin_data[13u * 8u] __attribute__((aligned(32)));
-    static u32_t hash_data[4u * 8u] __attribute__((aligned(32)));
     u64_t n_attempts = 0ul, n_coins = 0ul;
-    u32_t lane, idx;
 
-    // Create base template for DETI coin
+    /**
+     *  Coin initialization
+     *
+     *  Each lane is composed of a deti coin that respects the
+     *  template. After the base coin is created, the remaining
+     *  bytes are filled with random words (1 word = 4 bytes).
+     *
+     *  n_random_words: number of random 4-byte words to fill. [1 - 9]
+     */
+
+    u32_t coin_data[13u * 8u] __attribute__((aligned(32)));
+    u32_t hash_data[4u * 8u] __attribute__((aligned(32)));
+
+    u32_t lane, idx;
     u08_t template[52] = {
         'D', 'E', 'T', 'I', ' ', 'c', 'o', 'i', 'n', ' ',
         ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
@@ -19,104 +91,70 @@ static void deti_coins_cpu_avx2_search(u32_t n_random_words)
         ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
         ' ', '\n'};
 
-    // Initialize 8 parallel coin attempts
     for (lane = 0u; lane < 8u; lane++)
     {
-        // Copy template to this lane's data with proper interleaving
+        // Add randomization
+        for (idx = 0u; idx < n_random_words * 4; idx++)
+            template[10u + idx] = ' ' + (random() % 95);
+
+        // Interleaves the template
         for (idx = 0u; idx < 13u; idx++)
         {
             u32_t word = 0;
             memcpy(&word, template + idx * 4, 4);
             coin_data[idx * 8u + lane] = word;
         }
-
-        // Add randomization if requested
-        if (n_random_words > 0u)
-        {
-            for (idx = 0u; idx < n_random_words && idx < 10u; idx++)
-            {
-                u32_t pos = 10u + idx;
-                template[pos] = ' ' + (random() % (126 - 32));
-                u32_t word_idx = (pos / 4);
-                u32_t word = 0;
-                memcpy(&word, template + word_idx * 4, 4);
-                coin_data[word_idx * 8u + lane] = word;
-            }
-        }
     }
 
-    // Search loop
+    // print_lanes(coin_data);
+
+    /**
+     *  Search loop
+     *
+     *  The search loop computes 8 hashes in parallel and checks
+     *  all 8 results for DETI coins (power >= 32). Then it increments
+     *  the coin by 1 and repeats the process.
+     */
     while (!stop_request)
     {
-        // Compute 8 hashes in parallel
-        md5_cpu_avx2((v8si *)coin_data, (v8si *)hash_data);
+        // print_lanes(coin_data);
 
-        // Check all 8 results
+        // Compute and verify hashes
+        md5_cpu_avx2((v8si *)coin_data, (v8si *)hash_data);
         for (lane = 0u; lane < 8u; lane++)
         {
             u32_t hash[4];
             for (idx = 0u; idx < 4u; idx++)
-            {
                 hash[idx] = hash_data[idx * 8u + lane];
-            }
+
+            // printf("hash: %08x %08x %08x %08x\n", hash[0], hash[1], hash[2], hash[3]);
 
             hash_byte_reverse(hash);
-
-            u32_t n = deti_coin_power(hash);
-            if (n >= 32u)
+            if (deti_coin_power(hash) >= 32u)
             {
-                // Found a coin - deinterleave data
                 u32_t coin[13];
                 for (idx = 0u; idx < 13u; idx++)
-                {
                     coin[idx] = coin_data[idx * 8u + lane];
-                }
                 save_deti_coin(coin);
                 n_coins++;
             }
-        }
 
+            // Start incrementing after random words
+            u32_t start_pos = 10u + n_random_words * 4u;
+            u08_t *bytes = (u08_t *)coin_data;
+            for (u32_t i = start_pos; i < 51u; i++)
+            {
+                u32_t byte_pos = (i / 4u) * 8u * 4u + (i % 4u) + lane * 4u;
+                if (bytes[byte_pos] == '~')
+                    bytes[byte_pos] = ' '; // Reset to space
+                else
+                {
+                    bytes[byte_pos]++;
+                    break;
+                }
+            }
+        }
         n_attempts += 8ul;
-
-        // Increment search space
-        for (lane = 0u; lane < 8u; lane++)
-        {
-            u32_t carry = 1;
-            for (idx = (10u + n_random_words + 3u) / 4u; carry && idx < 13u; idx++)
-            {
-                u32_t word = coin_data[idx * 8u + lane];
-                u08_t *chars = (u08_t *)&word;
-
-                for (u32_t j = 0; j < 4 && carry; j++)
-                {
-                    if (chars[j] == 126)
-                    {
-                        chars[j] = ' ';
-                    }
-                    else
-                    {
-                        chars[j]++;
-                        carry = 0;
-                    }
-                }
-
-                coin_data[idx * 8u + lane] = word;
-            }
-
-            if (carry)
-            {
-                // Reset this lane with new random values
-                for (idx = 0u; idx < n_random_words && idx < 10u; idx++)
-                {
-                    u32_t pos = 10u + idx;
-                    template[pos] = ' ' + (random() % (126 - 32));
-                    u32_t word_idx = (pos / 4);
-                    u32_t word = 0;
-                    memcpy(&word, template + word_idx * 4, 4);
-                    coin_data[word_idx * 8u + lane] = word;
-                }
-            }
-        }
     }
 
     STORE_DETI_COINS();
