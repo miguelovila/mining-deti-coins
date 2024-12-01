@@ -1,6 +1,8 @@
 #ifndef DETI_COINS_CPU_AVX2_SEARCH
 #define DETI_COINS_CPU_AVX2_SEARCH
 
+#include "../common/init_coin_template_avx2.h"
+
 /**
  * Search for DETI coins using AVX2 instructions
  *
@@ -18,7 +20,7 @@ static void deti_coins_cpu_avx2_search(u32_t n_random_words)
     // Initialize all lanes
     for (u32_t lane = 0; lane < 8u; lane++)
     {
-        init_coin_template(bytes, lane, n_random_words);
+        init_coin_template_avx2(bytes, lane, n_random_words);
     }
 
     #if DEBUG > 0
@@ -77,7 +79,7 @@ static void deti_coins_cpu_avx2_search(u32_t n_random_words)
             // If we've exhausted the search space, generate new random content
             if (carry)
             {
-                init_coin_template(bytes, lane, n_random_words);
+                init_coin_template_avx2(bytes, lane, n_random_words);
             }
         }
 

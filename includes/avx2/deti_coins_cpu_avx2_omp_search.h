@@ -1,6 +1,7 @@
 #ifndef DETI_COINS_CPU_AVX2_OMP_SEARCH
 #define DETI_COINS_CPU_AVX2_OMP_SEARCH
 
+#include "../common/init_coin_template_avx2.h"
 #include <omp.h>
 
 static void deti_coins_cpu_avx2_omp_search(u32_t n_random_words)
@@ -20,7 +21,7 @@ static void deti_coins_cpu_avx2_omp_search(u32_t n_random_words)
         {
             for (u32_t lane = 0; lane < 8u; lane++)
             {
-                init_coin_template(bytes, lane, n_random_words);
+                init_coin_template_avx2(bytes, lane, n_random_words);
             }
         }
 
@@ -90,7 +91,7 @@ static void deti_coins_cpu_avx2_omp_search(u32_t n_random_words)
 
                 if (carry)
                 {
-                    init_coin_template(bytes, lane, n_random_words);
+                    init_coin_template_avx2(bytes, lane, n_random_words);
                 }
             }
 

@@ -22,9 +22,14 @@ CUDA_ARCH = sm_86
 
 # Source and header files
 SRC       = deti_coins.c
-H_FILES   = includes/cpu/cpu_utilities.h
-H_FILES  += includes/md5.h includes/md5_test_data.h includes/cpu/md5_cpu.h includes/avx/md5_cpu_avx.h includes/md5_cpu_neon.h
-H_FILES  += includes/deti_coins_vault.h includes/cpu/deti_coins_cpu_search.h includes/cu/deti_coins_cuda_search.h 
+# Utilities
+H_FILES   = includes/cpu/cpu_utilities.h includes/deti_coins_vault.h
+# MD5 hash function
+H_FILES  += includes/md5.h includes/md5_test_data.h
+H_FILES  += includes/cpu/md5_cpu.h includes/avx/md5_cpu_avx.h includes/avx2/md5_cpu_avx2.h includes/avx512/md5_cpu_avx512.h includes/md5_cpu_neon.h
+# Search algorithms
+H_FILES  += includes/cpu/deti_coins_cpu_search.h includes/cpu/deti_coins_cpu_omp_search.h includes/cu/deti_coins_cuda_search.h
+# CUDA driver API
 C_FILES   = includes/cuda_driver_api_utilities.h includes/md5_cuda.h
 
 #
