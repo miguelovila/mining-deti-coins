@@ -24,7 +24,7 @@ static void deti_coins_cpu_avx_search(u32_t n_random_words)
     }
 
     #if DEBUG > 0
-        print_lanes(coin_data, 4);
+        print_lanes(coin_data, 4, 4);
     #endif
 
     u64_t n_attempts = 0ul, n_coins = 0ul;
@@ -57,7 +57,7 @@ static void deti_coins_cpu_avx_search(u32_t n_random_words)
             }
 
             #if DEBUG > 0
-                print_coin_in_lane(coin_data, lane);
+                print_coin_in_lane(coin_data, lane, 4);
             #endif
 
             // Increment search space

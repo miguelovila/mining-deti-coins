@@ -32,7 +32,7 @@ static void deti_coins_cpu_avx_omp_search(u32_t n_random_words)
             if (thread_id == 0)
             {
                 printf("Initializing Thread %02d:\n", thread_id);
-                print_lanes(coin_data, 4);
+                print_lanes(coin_data, 4, 4);
                 printf("\n");
             }
         #endif
@@ -68,7 +68,7 @@ static void deti_coins_cpu_avx_omp_search(u32_t n_random_words)
                     if (thread_id == 0)
                     {
                         printf("Thread %02d:\n", thread_id);
-                        print_coin_in_lane(coin_data, lane);
+                        print_coin_in_lane(coin_data, lane, 4);
                         printf("\n");
                     }
                 #endif
