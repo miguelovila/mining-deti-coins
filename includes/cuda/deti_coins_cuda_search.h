@@ -1,19 +1,17 @@
-#ifndef DETI_COINS_CUDA_SEARCH
-#define DETI_COINS_CUDA_SEARCH
+// includes/cuda/deti_coins_cuda_search.h
+
+#ifndef DETI_COINS_CUDA_SEARCH_H
+#define DETI_COINS_CUDA_SEARCH_H
+
+#include <cuda.h>
 
 #define CUDA_ITERATIONS_PER_BATCH 1000000
 #define MAX_FOUND_COINS_PER_BATCH 1024
 
-// External CUDA function declarations
-extern void mine_deti_coins_cuda(
-    u32_t *template_data,
-    u32_t n_random_words,
-    u32_t *found_coins_data,
-    u32_t *found_coins_count,
-    u32_t iterations);
-
 static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
 {
+    CUdeviceptr d_found_coins;
+    CUfunction kernel;
     u32_t template_data[13];
     u08_t *bytes = (u08_t *)template_data;
     u64_t total_attempts = 0, total_coins = 0;
@@ -38,38 +36,62 @@ static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
         }
     }
 
-    // Allocate buffers for found coins
-    u32_t found_coins[MAX_FOUND_COINS_PER_BATCH][13];
-    u32_t found_coins_count;
+    // Initialize CUDA
+    initialize_cuda(0, "deti_coins_cuda_kernel_search.cubin", "mine_deti_coins_kernel", 0, sizeof(struct FoundCoins));
+
+    // Get kernel function
+    CU_CALL(cuModuleGetFunction, (&kernel, cu_module, "mine_deti_coins_kernel"));
+
+    // Allocate device memory for results
+    CU_CALL(cuMemAlloc, (&d_found_coins, sizeof(struct FoundCoins)));
+
+    // Create coin template structure
+    struct CoinTemplate tmpl;
+    memcpy(tmpl.data, template_data, sizeof(template_data));
+    tmpl.n_random_words = n_random_words;
 
     printf("Starting CUDA search with %u random words...\n", n_random_words);
+
+    struct FoundCoins found_coins;
+    void *args[] = {&tmpl, &d_found_coins, &CUDA_ITERATIONS_PER_BATCH};
 
     // Main search loop
     while (!stop_request)
     {
-        // Run a batch of iterations on the GPU
-        mine_deti_coins_cuda(
-            template_data,
-            n_random_words,
-            (u32_t *)found_coins,
-            &found_coins_count,
-            CUDA_ITERATIONS_PER_BATCH);
+        // Reset found coins counter
+        found_coins.count = 0;
+        CU_CALL(cuMemcpyHtoD, (d_found_coins, &found_coins, sizeof(struct FoundCoins)));
+
+        // Launch kernel
+        CU_CALL(cuLaunchKernel, (kernel,
+                                 256, 1, 1, // Grid dimensions
+                                 256, 1, 1, // Block dimensions
+                                 0,         // Shared memory bytes
+                                 0,         // Stream
+                                 args,      // Arguments
+                                 0));       // Size of arguments
+
+        // Copy results back
+        CU_CALL(cuMemcpyDtoH, (&found_coins, d_found_coins, sizeof(struct FoundCoins)));
 
         // Process found coins
-        for (u32_t i = 0; i < found_coins_count; i++)
+        for (int i = 0; i < found_coins.count && i < MAX_FOUND_COINS_PER_BATCH; i++)
         {
-            is_client ? client_save_deti_coin(found_coins[i]) : save_deti_coin(found_coins[i]);
+            is_client ? client_save_deti_coin(found_coins.coins[i]) : save_deti_coin(found_coins.coins[i]);
             total_coins++;
         }
 
         total_attempts += CUDA_ITERATIONS_PER_BATCH;
 
-        // Optional: Print progress update
         if (total_attempts % (CUDA_ITERATIONS_PER_BATCH * 100) == 0)
         {
             printf("Progress: %lu attempts, %lu coins found\n", total_attempts, total_coins);
         }
     }
+
+    // Cleanup
+    cuMemFree(d_found_coins);
+    terminate_cuda();
 
     if (!is_client)
     {
