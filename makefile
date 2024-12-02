@@ -36,14 +36,22 @@ C_FILES   = includes/cuda_driver_api_utilities.h includes/md5_cuda.h
 # clean up
 #
 clean:
-	rm -f *.o *.cubin deti_coins_intel_cuda deti_coins_intel deti_coins_apple
+	rm -f *.o *.cubin deti_coins_intel_cuda deti_coins_intel deti_coins_apple deti_coins_intel_avx512f
 
+#
+# compile for webassembly
+#
+deti_coins_webassembly_test:
+	cc -Wall -O2 deti_coins_webassembly.c -o deti_coins_webassembly
 
 #
 # compile for Intel/AMD processors without CUDA
 #
 deti_coins_intel:	$(SRC) $(H_FILES)
 	cc -Wall -O2 -fopenmp -mavx2 -DDEBUG=0 -DUSE_CUDA=0 $(SRC) -o deti_coins_intel
+
+deti_coins_intel_avx512f:	$(SRC) $(H_FILES)
+	cc -Wall -O2 -fopenmp -mavx512f -DDEBUG=0 -DUSE_CUDA=0 $(SRC) -o deti_coins_intel_avx512f
 
 deti_coins_intel_debug:	$(SRC) $(H_FILES)
 	cc -Wall -O0 -g -fopenmp -mavx2 -DDEBUG=1 -DUSE_CUDA=0 $(SRC) -o deti_coins_intel

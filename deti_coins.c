@@ -237,7 +237,7 @@ int main(int argc, char **argv)
         case '7':
             printf("searching for %u seconds using deti_coins_cpu_avx512_omp_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx512_search(n_random_words, false);
+            deti_coins_cpu_avx512_omp_search(n_random_words, false);
             break;
         #endif
         #ifdef DETI_COINS_CPU_NEON_SEARCH
