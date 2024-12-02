@@ -1,43 +1,7 @@
 #include <stdint.h>
 #include "../md5.h"
 
-typedef unsigned char u08_t;
-typedef unsigned int u32_t;
-
-__device__ __constant__ u32_t initial_state[4] = {
-    0x67452301u, 0xEFCDAB89u, 0x98BADCFEu, 0x10325476u
-};
-
-__device__ void hash_byte_reverse(u32_t hash[4]) {
-    #pragma unroll
-    for(int i = 0; i < 4; i++) {
-        u32_t val = hash[i];
-        hash[i] = ((val & 0xFF) << 24) | 
-                  ((val & 0xFF00) << 8) |
-                  ((val & 0xFF0000) >> 8) |
-                  ((val & 0xFF000000) >> 24);
-    }
-}
-
-__device__ uint32_t deti_coin_power(u32_t hash[4]) {
-    if(hash[3] != 0) {
-        return __clz(hash[3]);
-    }
-    if(hash[2] != 0) {
-        return 32 + __clz(hash[2]);
-    }
-    if(hash[1] != 0) {
-        return 64 + __clz(hash[1]);
-    }
-    if(hash[0] != 0) {
-        return 96 + __clz(hash[0]);
-    }
-    return 128;
-}
-
-__device__ void initialize_coin(u32_t* coin, uint32_t tid) {
-    u08_t* bytes = (u08_t*)coin;
-    
+__device__ void generate_coin(u08_t *bytes, u32_t thread_id) {
     // Mandatory prefix
     bytes[0] = 'D';
     bytes[1] = 'E';
@@ -49,57 +13,49 @@ __device__ void initialize_coin(u32_t* coin, uint32_t tid) {
     bytes[7] = 'i';
     bytes[8] = 'n';
     bytes[9] = ' ';
-    
-    // Fill middle with unique character sequence
+
+    // Fill remaining bytes with spaces
     for(int i = 10; i < 51; i++) {
-        uint32_t x = tid + i;
-        x = ((x >> 16) ^ x) * 0x45d9f3b;
-        x = ((x >> 16) ^ x) * 0x45d9f3b;
-        x = (x >> 16) ^ x;
-        bytes[i] = ' ' + (x % 95);  // ASCII 32-126
+        bytes[i] = ' ';
     }
-    
-    // Mandatory termination
+
+    // Try different characters based on thread_id
+    bytes[10] = ' ' + (thread_id % 95);
+    bytes[11] = ' ' + ((thread_id / 95) % 95);
+    bytes[12] = ' ' + ((thread_id / (95*95)) % 95);
+
+    // Add newline
     bytes[51] = '\n';
 }
 
-__device__ void save_valid_coin(u32_t* storage, u32_t* coin) {
-    uint32_t idx = atomicAdd(&storage[0], 13);
-    if(idx + 13 <= 1024) {
-        #pragma unroll
-        for(int i = 0; i < 13; i++) {
-            storage[idx + i] = coin[i];
-        }
-    }
+__device__ uint32_t swap_bytes(uint32_t value) {
+    return ((value & 0xFF) << 24) |
+           ((value & 0xFF00) << 8) |
+           ((value & 0xFF0000) >> 8) |
+           ((value >> 24) & 0xFF);
 }
 
-extern "C" __global__ void deti_coins_cuda_kernel_search(
-    u32_t* storage,
-    u32_t n_random_words
-) {
-    const uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+extern "C" __global__ void deti_coins_cuda_kernel_search(u32_t *storage) {
+    const u32_t thread_id = blockIdx.x * blockDim.x + threadIdx.x;
     
-    // Local storage
-    u32_t coin[13];
+    u32_t coin[13] = {0};
     u32_t hash[4], state[4], x[16];
-    
-    // Initialize coin with template and unique sequence
-    initialize_coin(coin, tid);
-    
-    // MD5 state variables
     u32_t a, b, c, d;
-    
-    // Initialize state
-    #pragma unroll
-    for(int i = 0; i < 4; i++) {
-        state[i] = initial_state[i];
-    }
-    
+
+    // Generate coin
+    generate_coin((u08_t*)coin, thread_id);
+
+    // Initialize MD5 state
+    state[0] = 0x67452301u;
+    state[1] = 0xEFCDAB89u;
+    state[2] = 0x98BADCFEu;
+    state[3] = 0x10325476u;
+
     a = state[0];
     b = state[1];
     c = state[2];
     d = state[3];
-    
+
     // Calculate hash
     #define C(c) (c)
     #define ROTATE(x,n) (((x) << (n)) | ((x) >> (32 - (n))))
@@ -116,12 +72,20 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     #undef HASH
     #undef STATE
     #undef X
-    
-    // Byte reverse hash for correct zero counting
-    hash_byte_reverse(hash);
-    
-    // Check number of trailing zeros and save if valid
-    if(deti_coin_power(hash) >= 32) {
-        save_valid_coin(storage, coin);
+
+    // Byte-reverse hash
+    for(int i = 0; i < 4; i++) {
+        hash[i] = swap_bytes(hash[i]);
+    }
+
+    // Check trailing zeros in byte-reversed hash
+    if(hash[3] == 0) {
+        // Save coin if valid
+        uint32_t idx = atomicAdd(storage, 13);
+        if(idx + 13 < 1024) {
+            for(int i = 0; i < 13; i++) {
+                storage[idx + i] = coin[i];
+            }
+        }
     }
 }

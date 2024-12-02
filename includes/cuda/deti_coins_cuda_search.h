@@ -4,60 +4,53 @@
 
 static void deti_coins_cuda_search(u32_t n_random_words, bool isClient)
 {
-    const uint32_t BLOCKS = 512;
-    const uint32_t THREADS = 256;
-    void *params[2];
+    void *params[1];
     u64_t n_attempts = 0, n_coins = 0;
 
     // Initialize CUDA
-    initialize_cuda(0, "deti_coins_cuda_kernel_search.cubin",
-                    "deti_coins_cuda_kernel_search", 1024, 0);
+    initialize_cuda(0, "deti_coins_cuda_kernel_search.cubin", "deti_coins_cuda_kernel_search", 1024, 0);
 
     while (!stop_request)
     {
         // Reset storage
         host_data[0] = 1;
-        CU_CALL(cuMemcpyHtoD, (device_data, (void *)host_data, sizeof(u32_t)));
+        CU_CALL(cuMemcpyHtoD, (device_data, host_data, sizeof(u32_t)));
 
         // Launch kernel
         params[0] = &device_data;
-        params[1] = &n_random_words;
-
         CU_CALL(cuLaunchKernel, (cu_kernel,
-                                 BLOCKS, 1, 1,  // Grid dimensions
-                                 THREADS, 1, 1, // Block dimensions
-                                 0,             // Shared memory size
-                                 (CUstream)0,   // Stream
-                                 params,        // Parameters
-                                 NULL));        // Extra
+                                 256, 1, 1, // Grid
+                                 256, 1, 1, // Block
+                                 0,         // Shared memory
+                                 (CUstream)0,
+                                 params,
+                                 NULL));
 
         // Get results
-        CU_CALL(cuMemcpyDtoH, ((void *)host_data, device_data,
-                               1024 * sizeof(u32_t)));
+        CU_CALL(cuMemcpyDtoH, (host_data, device_data, 1024 * sizeof(u32_t)));
 
-        // Process found coins
-        uint32_t count = (host_data[0] - 1) / 13;
-        for (uint32_t i = 0; i < count; i++)
+        // Process coins
+        uint32_t offset = 1;
+        while (offset < host_data[0] && offset < 1024)
         {
-            u32_t *coin = &host_data[1 + i * 13];
             if (isClient)
             {
-                client_save_deti_coin(coin);
+                client_save_deti_coin(&host_data[offset]);
             }
             else
             {
-                save_deti_coin(coin);
+                save_deti_coin(&host_data[offset]);
             }
+            offset += 13;
             n_coins++;
         }
 
-        n_attempts += BLOCKS * THREADS;
+        n_attempts += 256 * 256;
 
-        // Progress report every ~16M attempts
-        if ((n_attempts & ((1 << 24) - 1)) == 0)
+        // Progress report
+        if (n_attempts % (1ULL << 24) == 0)
         {
-            printf("Progress: %lu attempts, %lu coins found\n",
-                   n_attempts, n_coins);
+            printf("Progress: %lu attempts, %lu coins found\n", n_attempts, n_coins);
         }
     }
 
@@ -66,8 +59,7 @@ static void deti_coins_cuda_search(u32_t n_random_words, bool isClient)
         STORE_DETI_COINS();
     }
 
-    printf("deti_coins_cuda_search: %lu DETI coins found in %lu attempts "
-           "(expected %.2f coins)\n",
+    printf("deti_coins_cuda_search: %lu DETI coins found in %lu attempts (expected %.2f coins)\n",
            n_coins, n_attempts, (double)n_attempts / (double)(1ul << 32));
 
     terminate_cuda();
