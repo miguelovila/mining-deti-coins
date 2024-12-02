@@ -1,9 +1,7 @@
 //
-// Tomás Oliveira e Silva,  October 2024
+// Miguel Vila, December 2024
 //
 // Arquiteturas de Alto Desempenho 2024/2025
-//
-// deti_coins_cpu_search() --- find DETI coins using md5_cpu()
 //
 
 #ifndef DETI_COINS_CPU_SEARCH
