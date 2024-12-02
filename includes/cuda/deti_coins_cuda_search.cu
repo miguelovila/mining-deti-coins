@@ -7,28 +7,32 @@
 typedef uint8_t u08_t;
 typedef uint32_t u32_t;
 
-// Constant memory for the template
-__constant__ char template_str[10] = {'D', 'E', 'T', 'I', ' ', 'c', 'o', 'i', 'n', ' '};
+// Template string stored as bytes
+__device__ __constant__ u08_t template_bytes[] = {
+    'D', 'E', 'T', 'I', ' ', 'c', 'o', 'i', 'n', ' '
+};
 
-__device__ void generate_printable_string(char* str, uint32_t idx, uint32_t n_random_words) {
+// Align coin structure to 4 bytes
+struct __align__(4) CoinData {
+    u08_t data[52];
+};
+
+__device__ void init_coin(CoinData* coin) {
     // Copy template
     for (int i = 0; i < 10; i++) {
-        str[i] = template_str[i];
+        coin->data[i] = template_bytes[i];
     }
     
-    // Fill middle section with printable characters
-    uint32_t rand_val = idx;
+    // Fill with spaces
     for (int i = 10; i < 51; i++) {
-        // Use thread ID and position to generate pseudo-random printable characters
-        rand_val = ((rand_val << 13) ^ rand_val) + i;
-        str[i] = ' ' + (rand_val % 95); // ASCII 32-126 (printable range)
+        coin->data[i] = ' ';
     }
     
-    // Ensure newline at the end
-    str[51] = '\n';
+    // Add newline
+    coin->data[51] = '\n';
 }
 
-__device__ uint32_t count_trailing_zeros(uint32_t hash[4]) {
+__device__ uint32_t count_trailing_zeros(u32_t hash[4]) {
     for (int i = 3; i >= 0; i--) {
         if (hash[i] != 0) {
             return i * 32 + __clz(__brev(hash[i]));
@@ -37,57 +41,58 @@ __device__ uint32_t count_trailing_zeros(uint32_t hash[4]) {
     return 128;
 }
 
-__device__ void atomic_store_coin(uint32_t* storage, const char* coin_str, const uint32_t* hash) {
-    uint32_t idx = atomicAdd(storage, 1);
+__device__ void store_coin(u32_t* storage, const CoinData* coin) {
+    u32_t idx = atomicAdd(storage, 1);
     if (idx < MAX_COINS) {
-        uint32_t base_offset = 1 + idx * 13; // Skip counter, each coin takes 13 words
-        uint32_t temp[13] = {0}; // Temporary buffer for proper byte ordering
+        u32_t base_idx = 1 + idx * 13;
+        const u32_t* src = (const u32_t*)coin->data;
         
-        // Pack bytes into words properly
-        for (int i = 0; i < 52; i++) {
-            int word_idx = i / 4;
-            int byte_idx = i % 4;
-            temp[word_idx] |= ((uint32_t)(uint8_t)coin_str[i]) << (byte_idx * 8);
-        }
-        
-        // Store the properly packed words
+        #pragma unroll
         for (int i = 0; i < 13; i++) {
-            storage[base_offset + i] = temp[i];
+            storage[base_idx + i] = src[i];
         }
     }
 }
 
 extern "C" __global__ void deti_coins_cuda_kernel_search(
-    uint32_t* storage,
-    uint32_t n_random_words
+    u32_t* storage,
+    u32_t n_random_words
 ) {
-    const uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+    const u32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
     
-    char coin[COIN_SIZE];
-    uint32_t hash[4], state[4], x[16];
+    // Aligned coin data
+    __shared__ CoinData coins[32];
+    CoinData* coin = &coins[threadIdx.x % 32];
     
-    // Generate unique coin attempt based on thread ID
-    generate_printable_string(coin, tid, n_random_words);
+    // Initialize coin with template
+    init_coin(coin);
     
-    // MD5 state variables
-    uint32_t a, b, c, d;
+    // Add some randomness based on thread ID
+    u32_t rand = tid;
+    for (int i = 10; i < 51; i++) {
+        rand = ((rand << 13) ^ rand) * 0x2fd;
+        coin->data[i] = ' ' + (rand % 95);
+    }
     
-    // Initialize state
+    // MD5 variables
+    u32_t hash[4], state[4], x[16];
+    u32_t a, b, c, d;
+    
+    // Initialize MD5 state
     state[0] = 0x67452301u;
     state[1] = 0xEFCDAB89u;
     state[2] = 0x98BADCFEu;
     state[3] = 0x10325476u;
     
-    // Initialize variables from state
     a = state[0];
     b = state[1];
     c = state[2];
     d = state[3];
     
-    // Calculate MD5 hash
+    // Calculate hash
     #define C(c) (c)
     #define ROTATE(x,n) (((x) << (n)) | ((x) >> (32 - (n))))
-    #define DATA(idx) ((uint32_t*)coin)[idx]
+    #define DATA(idx) ((u32_t*)coin->data)[idx]
     #define HASH(idx) hash[idx]
     #define STATE(idx) state[idx]
     #define X(idx) x[idx]
@@ -101,8 +106,8 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     #undef STATE
     #undef X
     
-    // Check if it's a valid DETI coin (32+ trailing zeros)
+    // Check if valid and store
     if (count_trailing_zeros(hash) >= 32) {
-        atomic_store_coin(storage, coin, hash);
+        store_coin(storage, coin);
     }
 }
