@@ -23,11 +23,24 @@ __device__ void init_coin_template(u08_t *bytes) {
     bytes[51] = '\n';
 }
 
+__device__ uint32_t reverse_bytes(uint32_t value) {
+    return (value >> 24) |
+           ((value >> 8) & 0x0000FF00) |
+           ((value << 8) & 0x00FF0000) |
+           (value << 24);
+}
+
 __device__ uint32_t count_trailing_zeros(u32_t hash[4]) {
+    // First reverse bytes in each word since that's how MD5 is typically displayed
+    u32_t reversed[4];
+    for(int i = 0; i < 4; i++) {
+        reversed[i] = reverse_bytes(hash[i]);
+    }
+    
+    // Now count trailing zeros from least significant to most significant
     for(int i = 3; i >= 0; i--) {
-        if(hash[i] != 0) {
-            // Count trailing zeros in this word
-            uint32_t val = hash[i];
+        if(reversed[i] != 0) {
+            uint32_t val = reversed[i];
             uint32_t count = 0;
             while((val & 1) == 0 && count < 32) {
                 count++;
@@ -100,11 +113,6 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     #undef HASH
     #undef STATE
     #undef X
-    
-    // Reverse bytes in each hash word
-    for(int i = 0; i < 4; i++) {
-        hash[i] = __byte_perm(hash[i], 0, 0x0123);
-    }
     
     // Check for 32+ trailing zeros
     uint32_t zeros = count_trailing_zeros(hash);
