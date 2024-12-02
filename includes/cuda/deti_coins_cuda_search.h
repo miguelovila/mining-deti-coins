@@ -1,7 +1,7 @@
 // includes/cuda/deti_coins_cuda_search.h
 
-#ifndef DETI_COINS_CUDA_SEARCH_H
-#define DETI_COINS_CUDA_SEARCH_H
+#ifndef DETI_COINS_CUDA_SEARCH
+#define DETI_COINS_CUDA_SEARCH
 
 #include <cuda.h>
 #include "deti_coins_cuda_common.h"
