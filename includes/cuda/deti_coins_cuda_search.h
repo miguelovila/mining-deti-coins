@@ -38,7 +38,7 @@ u32_t next_value_to_try(v)
     } while (0);
 }
 
-static void deti_coins_cuda_search(u32_t n_random_words)
+static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
 {
     u32_t idx, max_idx, random_word, custom_word_1, custom_word_2;
     u64_t n_attempts, n_coins;
