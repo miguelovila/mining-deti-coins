@@ -7,7 +7,7 @@
 
 #include <omp.h>
 
-static void deti_coins_cpu_omp_search(void)
+static void deti_coins_cpu_omp_search(bool is_client)
 {
     u32_t idx;
     u64_t total_attempts = 0ul, total_coins = 0ul;
@@ -52,7 +52,7 @@ static void deti_coins_cpu_omp_search(void)
             {
                 #pragma omp critical
                 {
-                    save_deti_coin(coin);
+                    is_client ? client_save_deti_coin(coin) : save_deti_coin(coin);
                 }
                 thread_coins++;
             }
@@ -76,7 +76,8 @@ static void deti_coins_cpu_omp_search(void)
                thread_attempts, (thread_attempts == 1ul) ? "" : "s");
     }
 
-    STORE_DETI_COINS();
+    if (!is_client) { STORE_DETI_COINS(); }
+    
     printf("deti_coins_cpu_openmp_search: %lu DETI coin%s found in %lu attempt%s (expected %.2f coins)\n",
            total_coins, (total_coins == 1ul) ? "" : "s",
            total_attempts, (total_attempts == 1ul) ? "" : "s",

@@ -11,7 +11,7 @@
  *
  * @param n_random_words Number of random 4-byte words to fill. [1 - 9]
  */
-static void deti_coins_cpu_avx_search(u32_t n_random_words)
+static void deti_coins_cpu_avx_search(u32_t n_random_words, bool is_client)
 {
     u32_t coin_data[13u * 4u] __attribute__((aligned(16)));
     u32_t hash_data[4u * 4u] __attribute__((aligned(16)));
@@ -52,7 +52,7 @@ static void deti_coins_cpu_avx_search(u32_t n_random_words)
                 {
                     coin[i] = coin_data[i * 4u + lane];
                 }
-                save_deti_coin(coin);
+                is_client ? client_save_deti_coin(coin) : save_deti_coin(coin);
                 n_coins++;
             }
 
@@ -86,7 +86,8 @@ static void deti_coins_cpu_avx_search(u32_t n_random_words)
         n_attempts += 4ul;
     }
 
-    STORE_DETI_COINS();
+    if (!is_client) { STORE_DETI_COINS(); }
+
     printf("deti_coins_cpu_avx_search: %06lu DETI coins found in %lu attempts (expected %.2f coins)\n",
            n_coins, n_attempts, (double)n_attempts / (double)(1ul << 32));
 }

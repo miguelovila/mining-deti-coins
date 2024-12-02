@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 
@@ -123,8 +124,6 @@ static void alarm_signal_handler(int dummy)
 #ifdef MD5_CPU_AVX2
 #include "includes/avx2/deti_coins_cpu_avx2_search.h"
 #include "includes/avx2/deti_coins_cpu_avx2_omp_search.h"
-#include "includes/orchestration/avx2_client_search.h"
-#include "includes/orchestration/avx2_omp_client_search.h"
 #endif
 #ifdef MD5_CPU_AVX512
 #include "includes/avx512/deti_coins_cpu_avx512_search.h"
@@ -137,6 +136,8 @@ static void alarm_signal_handler(int dummy)
 // #if USE_CUDA > 0
 // # include "deti_coins_cuda_search.h"
 // #endif
+
+#include "includes/orchestration/client.h"
 
 //
 // main program
@@ -190,53 +191,53 @@ int main(int argc, char **argv)
         case '0':
             printf("searching for %u seconds using deti_coins_cpu_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_search();
+            deti_coins_cpu_search(false);
             break;
         case '1':
             printf("searching for %u seconds using deti_coins_cpu_omp_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_omp_search();
+            deti_coins_cpu_omp_search(false);
             break;
         #ifdef DETI_COINS_CPU_AVX_SEARCH
         case '2':
             printf("searching for %u seconds using deti_coins_cpu_avx_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx_search(n_random_words);
+            deti_coins_cpu_avx_search(n_random_words, false);
             break;
         #endif
         #ifdef DETI_COINS_CPU_AVX_OMP_SEARCH
         case '3':
             printf("searching for %u seconds using deti_coins_cpu_avx_omp_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx_omp_search(n_random_words);
+            deti_coins_cpu_avx_omp_search(n_random_words, false);
             break;
         #endif
         #ifdef DETI_COINS_CPU_AVX2_SEARCH
         case '4':
             printf("searching for %u seconds using deti_coins_cpu_avx2_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx2_search(n_random_words);
+            deti_coins_cpu_avx2_search(n_random_words, false);
             break;
         #endif
         #ifdef DETI_COINS_CPU_AVX2_OMP_SEARCH
         case '5':
             printf("searching for %u seconds using deti_coins_cpu_avx2_omp_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx2_omp_search(n_random_words);
+            deti_coins_cpu_avx2_omp_search(n_random_words, false);
             break;
         #endif
         #ifdef DETI_COINS_CPU_AVX512_SEARCH
         case '6':
             printf("searching for %u seconds using deti_coins_cpu_avx512_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx512_search(n_random_words);
+            deti_coins_cpu_avx512_search(n_random_words, false);
             break;
         #endif
         #ifdef DETI_COINS_CPU_AVX512_OMP_SEARCH
         case '7':
             printf("searching for %u seconds using deti_coins_cpu_avx512_omp_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx512_search(n_random_words);
+            deti_coins_cpu_avx512_search(n_random_words, false);
             break;
         #endif
         #ifdef DETI_COINS_CPU_NEON_SEARCH
@@ -319,70 +320,70 @@ int main(int argc, char **argv)
         case '0':
             printf("searching for %u seconds using deti_coins_cpu_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_search();
+            client_search_wrapper(ip, port, seconds, TECH_TYPE_CPU, 0);
             break;
         case '1':
             printf("searching for %u seconds using deti_coins_cpu_omp_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_omp_search();
+            client_search_wrapper(ip, port, seconds, TECH_TYPE_CPU, 1);
             break;
-        #ifdef DETI_COINS_CPU_AVX_CLIENT_SEARCH
+        #ifdef DETI_COINS_CPU_AVX_SEARCH
         case '2':
             printf("searching for %u seconds using deti_coins_cpu_avx_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx_search(n_random_words);
+            client_search_wrapper(ip, port, seconds, TECH_TYPE_AVX, 0);
             break;
         #endif
-        #ifdef DETI_COINS_CPU_AVX_OMP_CLIENT_SEARCH
+        #ifdef DETI_COINS_CPU_AVX_OMP_SEARCH
         case '3':
             printf("searching for %u seconds using deti_coins_cpu_avx_omp_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx_omp_search(n_random_words);
+            client_search_wrapper(ip, port, seconds, TECH_TYPE_AVX, 1);
             break;
         #endif
-        #ifdef DETI_COINS_CPU_AVX2_CLIENT_SEARCH
+        #ifdef DETI_COINS_CPU_AVX2_SEARCH
         case '4':
             printf("searching for %u seconds using deti_coins_cpu_avx2_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx2_client_search(ip, port, seconds);
+            client_search_wrapper(ip, port, seconds, TECH_TYPE_AVX2, 0);
             break;
-#endif
-        #ifdef DETI_COINS_CPU_AVX2_OMP_CLIENT_SEARCH
+        #endif
+        #ifdef DETI_COINS_CPU_AVX2_OMP_SEARCH
         case '5':
             printf("searching for %u seconds using deti_coins_cpu_avx2_omp_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx2_omp_client_search(ip, port, seconds);
+            client_search_wrapper(ip, port, seconds, TECH_TYPE_AVX2, 1);
             break;
         #endif
-        #ifdef DETI_COINS_CPU_AVX512_CLIENT_SEARCH
+        #ifdef DETI_COINS_CPU_AVX512_SEARCH
         case '6':
             printf("searching for %u seconds using deti_coins_cpu_avx512_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx512_search(n_random_words);
+            client_search_wrapper(ip, port, seconds, TECH_TYPE_AVX512, 0);
             break;
         #endif
-        #ifdef DETI_COINS_CPU_AVX512_OMP_CLIENT_SEARCH
+        #ifdef DETI_COINS_CPU_AVX512_OMP_SEARCH
         case '7':
             printf("searching for %u seconds using deti_coins_cpu_avx512_omp_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_avx512_search(n_random_words);
+            client_search_wrapper(ip, port, seconds, TECH_TYPE_AVX512, 1);
             break;
         #endif
-        #ifdef DETI_COINS_CPU_NEON_CLIENT_SEARCH
+        #ifdef DETI_COINS_CPU_NEON_SEARCH
         case '8':
             printf("searching for %u seconds using deti_coins_cpu_neon_search()\n", seconds);
             fflush(stdout);
             deti_coins_cpu_neon_search(n_random_words);
             break;
         #endif
-        #ifdef DETI_COINS_CUDA_CLIENT_SEARCH
+        #ifdef DETI_COINS_CUDA_SEARCH
         case '9':
             printf("searching for %u seconds using deti_coins_cuda_search()\n", seconds);
             fflush(stdout);
             deti_coins_cuda_search(n_random_words);
             break;
         #endif
-#ifdef DETI_COINS_CPU_SPECIAL_CLIENT_SEARCH
+        #ifdef DETI_COINS_CPU_SPECIAL_SEARCH
         case 'A':
             printf("searching for %u seconds using deti_coins_cpu_special_search()\n", seconds);
             fflush(stdout);
@@ -390,8 +391,6 @@ int main(int argc, char **argv)
             break;
         #endif
         }
-
-        //deti_coins_cpu_avx2_omp_client_search(ip, port, seconds);
         return 0;
     }
 
@@ -401,31 +400,31 @@ int main(int argc, char **argv)
     fprintf(stderr, "                          - n_random_words is the number of 4-byte words to use\n\n");
     fprintf(stderr, "       %s -c0  [ip] [port] [seconds]        # connect to a mine orchestraor using md5_cpu()\n", argv[0]);
     fprintf(stderr, "       %s -c1  [ip] [port] [seconds]        # connect to a mine orchestraor using md5_cpu() (OMP)\n", argv[0]);
-    #ifdef DETI_COINS_CPU_AVX_CLIENT_SEARCH
+    #ifdef DETI_COINS_CPU_AVX_SEARCH
         fprintf(stderr, "       %s -c2  [ip] [port] [seconds] [n_random_words] # connect to a mine orchestraor using md5_cpu_avx()\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CPU_AVX_OMP_CLIENT_SEARCH
+    #ifdef DETI_COINS_CPU_AVX_OMP_SEARCH
         fprintf(stderr, "       %s -c3  [ip] [port] [seconds] [n_random_words] # connect to a mine orchestraor using md5_cpu_avx() (OMP)\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CPU_AVX2_CLIENT_SEARCH
+    #ifdef DETI_COINS_CPU_AVX2_SEARCH
         fprintf(stderr, "       %s -c4  [ip] [port] [seconds] [n_random_words] # connect to a mine orchestraor using md5_cpu_avx2()\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CPU_AVX2_OMP_CLIENT_SEARCH
+    #ifdef DETI_COINS_CPU_AVX2_OMP_SEARCH
         fprintf(stderr, "       %s -c5  [ip] [port] [seconds] [n_random_words] # connect to a mine orchestraor using md5_cpu_avx2() (OMP)\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CPU_AVX512_CLIENT_SEARCH
+    #ifdef DETI_COINS_CPU_AVX512_SEARCH
         fprintf(stderr, "       %s -c6  [ip] [port] [seconds] [n_random_words] # connect to a mine orchestraor using md5_cpu_avx512()\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CPU_AVX512_OMP_CLIENT_SEARCH
+    #ifdef DETI_COINS_CPU_AVX512_OMP_SEARCH
         fprintf(stderr, "       %s -c7  [ip] [port] [seconds] [n_random_words] # connect to a mine orchestraor using md5_cpu_avx512() (OMP)\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CPU_NEON_CLIENT_SEARCH
+    #ifdef DETI_COINS_CPU_NEON_SEARCH
         fprintf(stderr, "       %s -c8  [ip] [port] [seconds] [n_random_words] # connect to a mine orchestraor using md5_cpu_neon()\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CUDA_CLIENT_SEARCH
+    #ifdef DETI_COINS_CUDA_SEARCH
         fprintf(stderr, "       %s -c9  [ip] [port] [seconds] [n_random_words] # connect to a mine orchestraor using md5_cuda()\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CPU_SPECIAL_CLIENT_SEARCH
+    #ifdef DETI_COINS_CPU_SPECIAL_SEARCH
         fprintf(stderr, "       %s -cA  [ip] [port] [seconds]                  # connect to a mine orchestraor using md5_cpu_special()\n", argv[0]);
     #endif
     fprintf(stderr, "                          - port is the server's port number\n");

@@ -9,7 +9,7 @@
 #ifndef DETI_COINS_CPU_SEARCH
 #define DETI_COINS_CPU_SEARCH
 
-static void deti_coins_cpu_search(void)
+static void deti_coins_cpu_search(bool is_client)
 {
   u32_t n,idx,coin[13u],hash[4u];
   u64_t n_attempts,n_coins;
@@ -60,7 +60,7 @@ static void deti_coins_cpu_search(void)
     //
     if(n >= 32u)
     {
-      save_deti_coin(coin);
+      is_client ? client_save_deti_coin(coin) : save_deti_coin(coin);
       n_coins++;
     }
     //
@@ -71,7 +71,7 @@ static void deti_coins_cpu_search(void)
     if(idx < 13u * 4u - 1u)
       bytes[idx]++;
   }
-  STORE_DETI_COINS();
+  if (!is_client) { STORE_DETI_COINS(); }
   printf("deti_coins_cpu_search: %lu DETI coin%s found in %lu attempt%s (expected %.2f coins)\n",n_coins,(n_coins == 1ul) ? "" : "s",n_attempts,(n_attempts == 1ul) ? "" : "s",(double)n_attempts / (double)(1ul << 32));
 }
 

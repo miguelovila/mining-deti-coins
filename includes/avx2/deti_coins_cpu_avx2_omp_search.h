@@ -4,7 +4,7 @@
 #include "../common/init_coin_template_avx2.h"
 #include <omp.h>
 
-static void deti_coins_cpu_avx2_omp_search(u32_t n_random_words)
+static void deti_coins_cpu_avx2_omp_search(u32_t n_random_words, bool is_client)
 {
     const int n_threads = omp_get_max_threads();
     u64_t global_attempts = 0ul, global_coins = 0ul;
@@ -59,7 +59,7 @@ static void deti_coins_cpu_avx2_omp_search(u32_t n_random_words)
                     }
                     #pragma omp critical
                     {
-                        save_deti_coin(coin);
+                        is_client ? client_save_deti_coin(coin) : save_deti_coin(coin);
                     }
                     thread_coins++;
                 }
@@ -104,7 +104,8 @@ static void deti_coins_cpu_avx2_omp_search(u32_t n_random_words)
         printf("Thread %02d: %03lu DETI coins found in %lu attempts\n", thread_id, thread_coins, thread_attempts);
     }
 
-    STORE_DETI_COINS();
+    if (!is_client) { STORE_DETI_COINS(); }
+
     printf("deti_coins_cpu_avx2_omp_search: %05lu DETI coins found in %lu attempts using %02d threads (expected %.2f coins)\n",
            global_coins, global_attempts, n_threads, (double)global_attempts / (double)(1ul << 32));
 }
