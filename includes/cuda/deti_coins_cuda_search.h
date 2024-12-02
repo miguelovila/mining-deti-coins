@@ -4,19 +4,18 @@
 
 static void deti_coins_cuda_search(u32_t n_random_words, bool isClient)
 {
-    const uint32_t BLOCKS = 1024;
-    const uint32_t THREADS_PER_BLOCK = 256;
+    const uint32_t BLOCKS = 512;
+    const uint32_t THREADS = 256;
     void *params[2];
     u64_t n_attempts = 0, n_coins = 0;
 
-    // Initialize CUDA
     initialize_cuda(0, "deti_coins_cuda_kernel_search.cubin", "deti_coins_cuda_kernel_search",
-                    1024, 0); // Buffer for results
+                    1024, 0);
 
     while (!stop_request)
     {
-        // Reset result counter
-        host_data[0] = 1; // Start at 1 to skip counter
+        // Clear result buffer
+        host_data[0] = 1;
         CU_CALL(cuMemcpyHtoD, (device_data, (void *)host_data, sizeof(u32_t)));
 
         // Launch kernel
@@ -24,38 +23,38 @@ static void deti_coins_cuda_search(u32_t n_random_words, bool isClient)
         params[1] = &n_random_words;
 
         CU_CALL(cuLaunchKernel, (cu_kernel,
-                                 BLOCKS,            // Grid X
-                                 1, 1,              // Grid Y,Z
-                                 THREADS_PER_BLOCK, // Block X
-                                 1, 1,              // Block Y,Z
-                                 0,                 // Shared memory
-                                 (CUstream)0,       // Stream
+                                 BLOCKS,
+                                 1, 1,
+                                 THREADS,
+                                 1, 1,
+                                 0,
+                                 (CUstream)0,
                                  params,
                                  NULL));
 
-        // Retrieve results
+        // Get results
         CU_CALL(cuMemcpyDtoH, ((void *)host_data, device_data, 1024 * sizeof(u32_t)));
 
-        // Process found coins
-        uint32_t offset = 1;
-        while (offset < 1024 && offset < host_data[0])
+        // Process coins
+        uint32_t count = (host_data[0] - 1) / 13;
+        for (uint32_t i = 0; i < count; i++)
         {
+            u32_t *coin = &host_data[1 + i * 13];
             if (isClient)
             {
-                client_save_deti_coin(&host_data[offset]);
+                client_save_deti_coin(coin);
             }
             else
             {
-                save_deti_coin(&host_data[offset]);
+                save_deti_coin(coin);
             }
-            offset += 13;
             n_coins++;
         }
 
-        n_attempts += BLOCKS * THREADS_PER_BLOCK;
+        n_attempts += BLOCKS * THREADS;
 
         if (n_attempts % (1ULL << 24) == 0)
-        { // Progress report every 16M attempts
+        {
             printf("Progress: %lu attempts, %lu coins found\n", n_attempts, n_coins);
         }
     }

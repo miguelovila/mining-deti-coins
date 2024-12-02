@@ -8,56 +8,37 @@ __device__ __constant__ u08_t coin_template[10] = {
     'D', 'E', 'T', 'I', ' ', 'c', 'o', 'i', 'n', ' '
 };
 
-__device__ void init_coin_template(u08_t *bytes) {
-    // Copy the template
+__device__ void init_coin(u08_t *bytes) {
+    // Initialize with template
     for(int i = 0; i < 10; i++) {
         bytes[i] = coin_template[i];
     }
-    
-    // Fill rest with spaces
+    // Fill with spaces
     for(int i = 10; i < 51; i++) {
         bytes[i] = ' ';
     }
-    
-    // Add newline at end
+    // Add newline
     bytes[51] = '\n';
 }
 
-__device__ uint32_t reverse_bytes(uint32_t value) {
-    return (value >> 24) |
-           ((value >> 8) & 0x0000FF00) |
-           ((value << 8) & 0x00FF0000) |
-           (value << 24);
+__device__ u32_t byte_swap(u32_t value) {
+    value = ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0xFF00FF);
+    return (value << 16) | (value >> 16);
 }
 
-__device__ uint32_t count_trailing_zeros(u32_t hash[4]) {
-    // First reverse bytes in each word since that's how MD5 is typically displayed
-    u32_t reversed[4];
+__device__ void save_valid_coin(u32_t *storage, u32_t *coin, u32_t *hash) {
+    // Byte swap hash values for proper validation
     for(int i = 0; i < 4; i++) {
-        reversed[i] = reverse_bytes(hash[i]);
+        hash[i] = byte_swap(hash[i]);
     }
     
-    // Now count trailing zeros from least significant to most significant
-    for(int i = 3; i >= 0; i--) {
-        if(reversed[i] != 0) {
-            uint32_t val = reversed[i];
-            uint32_t count = 0;
-            while((val & 1) == 0 && count < 32) {
-                count++;
-                val >>= 1;
+    // Validate trailing zeros
+    if(hash[3] == 0) {
+        u32_t idx = atomicAdd(&storage[0], 13);
+        if(idx + 13 <= 1024) {
+            for(int i = 0; i < 13; i++) {
+                storage[idx + i] = coin[i];
             }
-            return i * 32 + count;
-        }
-    }
-    return 128;
-}
-
-__device__ void save_valid_coin(u32_t *storage, u32_t *coin) {
-    u32_t idx = atomicAdd(&storage[0], 13); // Reserve space for one coin
-    if(idx + 13 <= 1024) { // Ensure we don't overflow
-        // Copy the coin data
-        for(int i = 0; i < 13; i++) {
-            storage[idx + i] = coin[i];
         }
     }
 }
@@ -67,35 +48,40 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     u32_t n_random_words
 ) {
     const u32_t tid = blockDim.x * blockIdx.x + threadIdx.x;
-    const u32_t start_pos = 10 + n_random_words * 4;
-    
-    u32_t coin[13] = {0};  // Initialize all to 0
+    __shared__ u32_t shared_coin[13];
     u32_t hash[4], state[4], x[16];
-    u08_t *bytes = (u08_t *)coin;
+    u08_t *bytes = (u08_t *)shared_coin;
     
-    // Initialize coin template
-    init_coin_template(bytes);
+    if (threadIdx.x == 0) {
+        init_coin(bytes);
+    }
+    __syncthreads();
     
-    // Generate unique sequence for this thread
+    // Copy to local array
+    u32_t coin[13];
+    for(int i = 0; i < 13; i++) {
+        coin[i] = shared_coin[i];
+    }
+    bytes = (u08_t *)coin;
+    
+    // Add randomization based on thread ID
     u32_t seed = tid;
     for(u32_t i = 0; i < n_random_words * 4 && i + 10 < 51; i++) {
-        seed = ((seed * 1664525u + 1013904223u) & 0xffffffffu);
-        bytes[10 + i] = ' ' + (seed % 95); // ASCII 32-126
+        seed = seed * 1664525u + 1013904223u;
+        bytes[10 + i] = ' ' + (seed % 95);
     }
     
-    // MD5 state variables
-    u32_t a, b, c, d;
-    
-    // Initialize state
+    // Initialize MD5 state
     state[0] = 0x67452301u;
     state[1] = 0xEFCDAB89u;
     state[2] = 0x98BADCFEu;
     state[3] = 0x10325476u;
     
-    a = state[0];
-    b = state[1];
-    c = state[2];
-    d = state[3];
+    // MD5 variables
+    u32_t a = state[0];
+    u32_t b = state[1];
+    u32_t c = state[2];
+    u32_t d = state[3];
     
     // Calculate MD5 hash
     #define C(c) (c)
@@ -114,9 +100,5 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     #undef STATE
     #undef X
     
-    // Check for 32+ trailing zeros
-    uint32_t zeros = count_trailing_zeros(hash);
-    if(zeros >= 32) {
-        save_valid_coin(storage, coin);
-    }
+    save_valid_coin(storage, coin, hash);
 }
