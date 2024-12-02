@@ -73,11 +73,11 @@ deti_coins_intel_cuda: deti_coins.o md5_cuda_kernel.cubin deti_coins_cuda_kernel
 		-L$(CUDA_DIR)/lib64 -lcuda
 
 deti_coins.o: $(SRC) $(H_FILES)
-	cc -Wall -O2 -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include -c $(SRC) -o deti_coins.o
+	cc -Wall -O2 -fopenmp -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include -c $(SRC) -o deti_coins.o
 
 md5_cuda_kernel.cubin: includes/md5.h md5_cuda_kernel.cu
 	nvcc -arch=$(CUDA_ARCH) --compiler-options -O2,-Wall -I$(CUDA_DIR)/include --cubin md5_cuda_kernel.cu -o md5_cuda_kernel.cubin
 
-deti_coins_cuda_kernel_search.cubin: includes/md5.h includes/cu/deti_coins_cuda_search.cu
-	nvcc -arch=$(CUDA_ARCH) --compiler-options -O2,-Wall -I$(CUDA_DIR)/include --cubin includes/cu/deti_coins_cuda_search.cu -o deti_coins_cuda_kernel_search.cubin
+deti_coins_cuda_kernel_search.cubin: includes/md5.h includes/cuda/deti_coins_cuda_search.cu
+	nvcc -arch=$(CUDA_ARCH) --compiler-options -O2,-Wall -I$(CUDA_DIR)/include --cubin includes/cuda/deti_coins_cuda_search.cu -o deti_coins_cuda_kernel_search.cubin
 

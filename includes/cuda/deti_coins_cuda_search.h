@@ -1,96 +1,83 @@
-
 #ifndef DETI_COINS_CUDA_SEARCH
 #define DETI_COINS_CUDA_SEARCH
 
-#include <cuda_runtime.h>
+#define CUDA_ITERATIONS_PER_BATCH 1000000
+#define MAX_FOUND_COINS_PER_BATCH 1024
 
-static void check_cuda_error(cudaError_t err, const char *msg)
-{
-    if (err != cudaSuccess)
-    {
-        fprintf(stderr, "CUDA Error: %s: %s\n", msg, cudaGetErrorString(err));
-        exit(1);
-    }
-}
+// External CUDA function declarations
+extern void mine_deti_coins_cuda(
+    u32_t *template_data,
+    u32_t n_random_words,
+    u32_t *found_coins_data,
+    u32_t *found_coins_count,
+    u32_t iterations);
 
 static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
 {
-    CoinBuffer *d_coin_buffer;
-    CoinBuffer *h_coin_buffer;
-    cudaError_t err;
+    u32_t template_data[13];
+    u08_t *bytes = (u08_t *)template_data;
+    u64_t total_attempts = 0, total_coins = 0;
 
-    // Allocate host memory
-    h_coin_buffer = (CoinBuffer *)malloc(sizeof(CoinBuffer) + MAX_COINS_BUFFER * 13 * sizeof(uint32_t));
-    if (h_coin_buffer == NULL)
+    // Initialize template with required prefix
+    const u08_t prefix[] = {'D', 'E', 'T', 'I', ' ', 'c', 'o', 'i', 'n', ' '};
+    memcpy(bytes, prefix, sizeof(prefix));
+
+    // Fill remaining template with spaces and newline
+    for (u32_t i = sizeof(prefix); i < 51; i++)
     {
-        fprintf(stderr, "Failed to allocate host memory\n");
-        exit(1);
+        bytes[i] = ' ';
+    }
+    bytes[51] = '\n';
+
+    // Generate initial random content if requested
+    if (n_random_words > 0)
+    {
+        for (u32_t i = 0; i < n_random_words * 4 && i + 10 < 51; i++)
+        {
+            bytes[10 + i] = ' ' + (random() % 95);
+        }
     }
 
-    // Allocate device memory
-    err = cudaMalloc(&d_coin_buffer, sizeof(CoinBuffer) + MAX_COINS_BUFFER * 13 * sizeof(uint32_t));
-    check_cuda_error(err, "Failed to allocate device memory");
+    // Allocate buffers for found coins
+    u32_t found_coins[MAX_FOUND_COINS_PER_BATCH][13];
+    u32_t found_coins_count;
 
-    // Calculate grid dimensions
-    int device;
-    cudaDeviceProp prop;
-    err = cudaGetDevice(&device);
-    check_cuda_error(err, "Failed to get device");
-    err = cudaGetDeviceProperties(&prop, device);
-    check_cuda_error(err, "Failed to get device properties");
+    printf("Starting CUDA search with %u random words...\n", n_random_words);
 
-    const int blocks = min(MAX_BLOCKS, (prop.maxThreadsPerMultiProcessor * prop.multiProcessorCount) / THREADS_PER_BLOCK);
-
-    printf("CUDA search starting with %d blocks, %d threads per block\n", blocks, THREADS_PER_BLOCK);
-
-    u64_t total_attempts = 0ul;
-    u64_t total_coins = 0ul;
-
+    // Main search loop
     while (!stop_request)
     {
-        // Reset coin buffer
-        h_coin_buffer->count = 0;
-        err = cudaMemcpy(d_coin_buffer, h_coin_buffer, sizeof(CoinBuffer), cudaMemcpyHostToDevice);
-        check_cuda_error(err, "Failed to copy coin buffer to device");
-
-        // Launch kernel
-        deti_coins_cuda_kernel<<<blocks, THREADS_PER_BLOCK>>>(d_coin_buffer, n_random_words);
-        err = cudaGetLastError();
-        check_cuda_error(err, "Kernel launch failed");
-
-        // Wait for kernel to finish
-        err = cudaDeviceSynchronize();
-        check_cuda_error(err, "Kernel synchronization failed");
-
-        // Copy results back
-        err = cudaMemcpy(h_coin_buffer, d_coin_buffer, sizeof(CoinBuffer) + h_coin_buffer->count * 13 * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-        check_cuda_error(err, "Failed to copy results from device");
+        // Run a batch of iterations on the GPU
+        mine_deti_coins_cuda(
+            template_data,
+            n_random_words,
+            (u32_t *)found_coins,
+            &found_coins_count,
+            CUDA_ITERATIONS_PER_BATCH);
 
         // Process found coins
-        for (uint32_t i = 0; i < h_coin_buffer->count && i < MAX_COINS_BUFFER; i++)
+        for (u32_t i = 0; i < found_coins_count; i++)
         {
-            uint32_t coin[13];
-            memcpy(coin, &h_coin_buffer->coin_data[i * 13], 13 * sizeof(uint32_t));
-            is_client ? client_save_deti_coin(coin) : save_deti_coin(coin);
+            is_client ? client_save_deti_coin(found_coins[i]) : save_deti_coin(found_coins[i]);
             total_coins++;
         }
 
-        total_attempts += (u64_t)blocks * THREADS_PER_BLOCK * 1000; // 1000 is max_attempts per thread
-    }
+        total_attempts += CUDA_ITERATIONS_PER_BATCH;
 
-    // Clean up
-    cudaFree(d_coin_buffer);
-    free(h_coin_buffer);
+        // Optional: Print progress update
+        if (total_attempts % (CUDA_ITERATIONS_PER_BATCH * 100) == 0)
+        {
+            printf("Progress: %lu attempts, %lu coins found\n", total_attempts, total_coins);
+        }
+    }
 
     if (!is_client)
     {
         STORE_DETI_COINS();
     }
 
-    printf("deti_coins_cuda_search: %lu DETI coin%s found in %lu attempt%s (expected %.2f coins)\n",
-           total_coins, (total_coins == 1ul) ? "" : "s",
-           total_attempts, (total_attempts == 1ul) ? "" : "s",
-           (double)total_attempts / (double)(1ul << 32));
+    printf("deti_coins_cuda_search: %lu DETI coins found in %lu attempts (expected %.2f coins)\n",
+           total_coins, total_attempts, (double)total_attempts / (double)(1ul << 32));
 }
 
 #endif
