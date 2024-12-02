@@ -5,30 +5,6 @@
 #include <unistd.h>
 #include <omp.h>
 
-// Override coin saving to send to server instead
-static int server_socket = -1;
-static char client_hostname[9];
-
-static void client_save_deti_coin(u32_t coin[13])
-{
-    if (server_socket != -1)
-    {
-        message_t msg;
-        msg.type = MSG_TYPE_COIN_FOUND;
-        strncpy(msg.hostname, client_hostname, sizeof(msg.hostname));
-        memcpy(msg.coin, coin, 13 * sizeof(u32_t));
-
-        if (send_message(server_socket, &msg) < 0)
-        {
-            perror("[ERR] Failed to send coin to server");
-        }
-        //else
-        //{
-        //    printf("[INF] Sent coin to server\n");
-        //}
-    }
-}
-
 static void deti_coins_cpu_avx2_omp_client_search(const char *server_ip, int port, u32_t seconds)
 {
     // Get hostname
