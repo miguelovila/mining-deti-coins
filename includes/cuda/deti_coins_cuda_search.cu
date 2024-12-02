@@ -63,6 +63,21 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     // Generate unique coin attempt based on thread ID
     generate_printable_string(coin, tid, n_random_words);
     
+    // MD5 state variables - these need to be declared before CUSTOM_MD5_CODE()
+    uint32_t a, b, c, d;
+    
+    // Initialize state
+    state[0] = 0x67452301u;
+    state[1] = 0xEFCDAB89u;
+    state[2] = 0x98BADCFEu;
+    state[3] = 0x10325476u;
+    
+    // Initialize variables from state
+    a = state[0];
+    b = state[1];
+    c = state[2];
+    d = state[3];
+    
     // Calculate MD5 hash
     #define C(c) (c)
     #define ROTATE(x,n) (((x) << (n)) | ((x) >> (32 - (n))))
@@ -72,6 +87,13 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     #define X(idx) x[idx]
     
     CUSTOM_MD5_CODE();
+    
+    #undef C
+    #undef ROTATE
+    #undef DATA
+    #undef HASH
+    #undef STATE
+    #undef X
     
     // Check if it's a valid DETI coin (32+ trailing zeros)
     if (count_trailing_zeros(hash) >= 32) {
