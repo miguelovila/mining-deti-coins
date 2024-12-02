@@ -7,6 +7,7 @@
 
 // Override coin saving to send to server instead
 static int server_socket = -1;
+static char client_hostname[9];
 
 static void client_save_deti_coin(u32_t coin[13])
 {
@@ -14,6 +15,7 @@ static void client_save_deti_coin(u32_t coin[13])
     {
         message_t msg;
         msg.type = MSG_TYPE_COIN_FOUND;
+        strncpy(msg.hostname, client_hostname, sizeof(msg.hostname));
         memcpy(msg.coin, coin, 13 * sizeof(u32_t));
 
         if (send_message(server_socket, &msg) < 0)
@@ -29,14 +31,34 @@ static void client_save_deti_coin(u32_t coin[13])
 
 static void deti_coins_cpu_avx2_omp_client_search(const char *server_ip, int port, u32_t seconds)
 {
+    // Get hostname
+    if (gethostname(client_hostname, sizeof(client_hostname)) < 0)
+    {
+        strncpy(client_hostname, "unknown", sizeof(client_hostname));
+    }
+    client_hostname[sizeof(client_hostname) - 1] = '\0';
+
     // Connect to server
     server_socket = connect_to_server(server_ip, port);
-    char hostname[9]; gethostname(hostname, 9);
+
+    // Send hello message
+    message_t msg;
+    msg.type = MSG_TYPE_HELLO;
+    strncpy(msg.hostname, client_hostname, sizeof(msg.hostname));
+    msg.tech_type = TECH_TYPE_AVX2;
+    msg.omp_threads = omp_get_max_threads();
+
+    if (send_message(server_socket, &msg) < 0)
+    {
+        perror("Failed to send hello message");
+        close(server_socket);
+        return;
+    }
+
     printf("[INF] Connected to server %s:%d\n", server_ip, port);
-    printf("[INF] Client identifier: %s\n", hostname);
+    printf("[INF] Client identifier: %s\n", client_hostname);
 
     // Receive configuration
-    message_t msg;
     if (receive_message(server_socket, &msg) <= 0 || msg.type != MSG_TYPE_CONFIG)
     {
         perror("[ERR] Failed to receive configuration");

@@ -10,14 +10,24 @@
 #include <arpa/inet.h>
 
 // Message types
-#define MSG_TYPE_CONFIG 1
-#define MSG_TYPE_COIN_FOUND 2
-#define MSG_TYPE_TELEMETRY 3
+#define MSG_TYPE_HELLO 1      // Client introduction
+#define MSG_TYPE_CONFIG 2     // Server configuration
+#define MSG_TYPE_COIN_FOUND 3 // Client found a coin
+
+// Technology types
+#define TECH_TYPE_CPU 1
+#define TECH_TYPE_AVX 2
+#define TECH_TYPE_AVX2 3
+#define TECH_TYPE_AVX512 4
+#define TECH_TYPE_CUDA 5
 
 // Protocol message structure
 typedef struct
 {
     uint32_t type;           // Message type
+    char hostname[9];        // Client identifier (null-terminated)
+    uint32_t tech_type;      // Technology being used
+    uint32_t omp_threads;    // Number of OpenMP threads (0 if not using OMP)
     uint32_t n_random_words; // Configuration value
     uint32_t coin[13];       // Found coin data (when reporting found coins)
 } message_t;
@@ -42,14 +52,14 @@ static int create_server_socket(int port)
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0)
     {
-        perror("Socket creation failed");
+        perror("[ERR] Socket creation failed");
         exit(EXIT_FAILURE);
     }
 
     int opt = 1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
     {
-        perror("setsockopt failed");
+        perror("[ERR] setsockopt failed");
         exit(EXIT_FAILURE);
     }
 
@@ -59,13 +69,13 @@ static int create_server_socket(int port)
 
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0)
     {
-        perror("Bind failed");
+        perror("[ERR] Bind failed");
         exit(EXIT_FAILURE);
     }
 
     if (listen(server_fd, 3) < 0)
     {
-        perror("Listen failed");
+        perror("[ERR] Listen failed");
         exit(EXIT_FAILURE);
     }
 
@@ -81,7 +91,7 @@ static int connect_to_server(const char *ip, int port)
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0)
     {
-        perror("Socket creation failed");
+        perror("[ERR] Socket creation failed");
         exit(EXIT_FAILURE);
     }
 
@@ -90,13 +100,13 @@ static int connect_to_server(const char *ip, int port)
 
     if (inet_pton(AF_INET, ip, &serv_addr.sin_addr) <= 0)
     {
-        perror("Invalid address");
+        perror("[ERR] Invalid address");
         exit(EXIT_FAILURE);
     }
 
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
-        perror("Connection failed");
+        perror("[ERR] Connection failed");
         exit(EXIT_FAILURE);
     }
 

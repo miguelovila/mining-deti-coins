@@ -10,13 +10,34 @@ static void handle_client(int client_socket, u32_t n_random_words)
 {
     message_t msg;
 
+    // Wait for hello
+    if (receive_message(client_socket, &msg) <= 0 || msg.type != MSG_TYPE_HELLO)
+    {
+        perror("[ERR] Failed to receive client hello");
+        close(client_socket);
+        return;
+    }
+
+    // Log client connection and tore tech type and omp threads
+    printf("[INF] Client %s just connected. Using %s%s%s%u%s\n",
+        msg.hostname,
+        msg.tech_type == TECH_TYPE_CPU ? "CPU" :
+        msg.tech_type == TECH_TYPE_AVX ? "AVX" :
+        msg.tech_type == TECH_TYPE_AVX2 ? "AVX2" :
+        msg.tech_type == TECH_TYPE_AVX512 ? "AVX512" :
+        msg.tech_type == TECH_TYPE_CUDA ? "CUDA" : "Unknown",
+        msg.omp_threads > 0 ? " with OpenMP (" : ".",
+        msg.omp_threads > 0 ? "" : "",
+        msg.omp_threads,
+        msg.omp_threads > 0 ? " threads)" : "");
+
     // Send configuration to client
     msg.type = MSG_TYPE_CONFIG;
     msg.n_random_words = n_random_words;
 
     if (send_message(client_socket, &msg) < 0)
     {
-        perror("Failed to send configuration");
+        perror("[ERR] Failed to send configuration");
         close(client_socket);
         return;
     }
@@ -31,11 +52,13 @@ static void handle_client(int client_socket, u32_t n_random_words)
 
         if (msg.type == MSG_TYPE_COIN_FOUND)
         {
+            printf("[INF] Received coin from %s\n", msg.hostname);
             save_deti_coin(msg.coin);
             STORE_DETI_COINS();
         }
     }
 
+    printf("[INF] Client %s disconnected\n", msg.hostname);
     close(client_socket);
 }
 
@@ -61,14 +84,15 @@ static void run_orchestrator(int port, u32_t n_random_words)
     int addrlen = sizeof(address);
 
     server_fd = create_server_socket(port);
-    printf("Server is listening on port %d\n", port);
+    printf("[INF] Server is listening on port %d\n", port);
+    printf("[INF] Configuration: n_random_words = %u\n", n_random_words);
 
     while (orchestrator_running)
     {
         client_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
         if (client_socket < 0)
         {
-            perror("Accept failed");
+            perror("[ERR] Accept failed");
             continue;
         }
 
@@ -85,14 +109,12 @@ static void run_orchestrator(int port, u32_t n_random_words)
         pthread_t thread_id;
         if (pthread_create(&thread_id, NULL, client_thread, params) != 0)
         {
-            perror("Failed to create thread");
+            perror("[ERR] Failed to create thread");
             free(params);
             close(client_socket);
             continue;
         }
         pthread_detach(thread_id);
-
-        printf("New client connected\n");
     }
 
     close(server_fd);
