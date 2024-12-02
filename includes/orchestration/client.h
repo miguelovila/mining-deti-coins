@@ -108,7 +108,7 @@ static void client_search_wrapper(const char *server_ip, int port, u32_t seconds
     #endif
     #ifdef DETI_COINS_CUDA_SEARCH
     case TECH_TYPE_CUDA:
-        deti_coins_cuda_search(n_random_words);
+        //deti_coins_cuda_search(n_random_words);
         break;
     #endif
     #ifdef DETI_COINS_CPU_SPECIAL_SEARCH

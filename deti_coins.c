@@ -251,7 +251,7 @@ int main(int argc, char **argv)
         case '9':
             printf("searching for %u seconds using deti_coins_cuda_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cuda_search(n_random_words);
+            deti_coins_cuda_search(n_random_words, false);
             break;
         #endif
         #ifdef DETI_COINS_CPU_SPECIAL_SEARCH
@@ -380,7 +380,7 @@ int main(int argc, char **argv)
         case '9':
             printf("searching for %u seconds using deti_coins_cuda_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cuda_search(n_random_words);
+            //deti_coins_cuda_search(n_random_words, );
             break;
         #endif
         #ifdef DETI_COINS_CPU_SPECIAL_SEARCH
