@@ -13,7 +13,7 @@ static void client_search_wrapper(const char *server_ip, int port, u32_t seconds
     }
     client_hostname[sizeof(client_hostname) - 1] = '\0';
 
-    omp = omp > 0 ? tech_type : 0;
+    omp = omp > 0 ? omp_get_max_threads() : 0;
 
     // Connect to server
     server_socket = connect_to_server(server_ip, port);

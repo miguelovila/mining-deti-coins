@@ -26,10 +26,10 @@ static void handle_client(int client_socket, u32_t n_random_words)
         msg.tech_type == TECH_TYPE_AVX2 ? "AVX2" :
         msg.tech_type == TECH_TYPE_AVX512 ? "AVX512" :
         msg.tech_type == TECH_TYPE_CUDA ? "CUDA" : "Unknown",
-        msg.omp_threads > 0 ? " with OpenMP (" : ".",
+        msg.omp_threads > 0 ? " with OpenMP (" : ". (",
         msg.omp_threads > 0 ? "" : "",
-        msg.omp_threads,
-        msg.omp_threads > 0 ? " threads)" : "");
+        msg.omp_threads > 0 ? msg.omp_threads : 1,
+        msg.omp_threads > 0 ? " threads)" : " thread)");
 
     // Send configuration to client
     msg.type = MSG_TYPE_CONFIG;
