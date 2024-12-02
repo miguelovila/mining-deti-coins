@@ -133,9 +133,9 @@ static void alarm_signal_handler(int dummy)
 // #ifdef MD5_CPU_NEON
 // # include "deti_coins_cpu_neon_search.h"
 // #endif
-// #if USE_CUDA > 0
-// # include "deti_coins_cuda_search.h"
-// #endif
+#if USE_CUDA > 0
+# include "includes/cuda/deti_coins_cuda_search.h"
+#endif
 
 #include "includes/orchestration/client.h"
 

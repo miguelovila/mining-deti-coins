@@ -28,7 +28,7 @@ H_FILES   = includes/cpu/cpu_utilities.h includes/deti_coins_vault.h
 H_FILES  += includes/md5.h includes/md5_test_data.h
 H_FILES  += includes/cpu/md5_cpu.h includes/avx/md5_cpu_avx.h includes/avx2/md5_cpu_avx2.h includes/avx512/md5_cpu_avx512.h includes/md5_cpu_neon.h
 # Search algorithms
-H_FILES  += includes/cpu/deti_coins_cpu_search.h includes/cpu/deti_coins_cpu_omp_search.h includes/cu/deti_coins_cuda_search.h
+H_FILES  += includes/cpu/deti_coins_cpu_search.h includes/cpu/deti_coins_cpu_omp_search.h includes/cuda/deti_coins_cuda_search.h
 # CUDA driver API
 C_FILES   = includes/cuda_driver_api_utilities.h includes/md5_cuda.h
 
@@ -69,8 +69,8 @@ deti_coins_apple: $(SRC) $(H_FILES)
 # compile for Intel/AMD processors with CUDA
 #
 deti_coins_intel_cuda: deti_coins.o md5_cuda_kernel.cubin deti_coins_cuda_kernel_search.cubin
-	cc -Wall -O2 -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include deti_coins.o -o deti_coins_intel_cuda \
-		-L$(CUDA_DIR)/lib64 -lcuda
+	cc -Wall -O2 -fopenmp -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include deti_coins.o -o deti_coins_intel_cuda \
+		-L$(CUDA_DIR)/lib64 -lcuda -lcudart
 
 deti_coins.o: $(SRC) $(H_FILES)
 	cc -Wall -O2 -fopenmp -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include -c $(SRC) -o deti_coins.o
