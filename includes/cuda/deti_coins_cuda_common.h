@@ -3,10 +3,10 @@
 #ifndef DETI_COINS_CUDA_COMMON_H
 #define DETI_COINS_CUDA_COMMON_H
 
-#define THREADS_PER_BLOCK 512  // Increased from 256
-#define MAX_BLOCKS 1024        // Adjusted for better occupancy
+#define THREADS_PER_BLOCK 256
+#define BLOCKS_PER_GRID 256
 #define COINS_BUFFER_SIZE 1024
-#define CUDA_ITERATIONS_PER_BATCH 10000000  // Increased batch size
+#define ITERATIONS_PER_THREAD 100  // Each thread will try this many combinations
 
 // Structure to store found coins
 struct FoundCoins {
