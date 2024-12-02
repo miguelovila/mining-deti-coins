@@ -36,7 +36,7 @@ C_FILES   = includes/cuda_driver_api_utilities.h includes/md5_cuda.h
 # clean up
 #
 clean:
-	rm -f *.o *.cubin deti_coins_intel_cuda deti_coins_intel deti_coins_apple deti_coins_intel_avx512f
+	rm -f *.o *.cubin deti_coins_intel_cuda deti_coins_intel deti_coins_apple deti_coins_intel_avx512f deti_coins_webassembly deti_coins_webassembly.html deti_coins_webassembly.js deti_coins_webassembly.wasm
 
 #
 # compile for webassembly
@@ -45,6 +45,7 @@ deti_coins_webassembly_test:
 	cc -Wall -O2 deti_coins_webassembly.c -o deti_coins_webassembly
 deti_coins_webassembly:
 	emcc -Wall -O2 deti_coins_webassembly.c -o deti_coins_webassembly.html
+	echo -e "\n\nRun 'python3 -m http.server' to start a web server"
 
 #
 # compile for Intel/AMD processors without CUDA
