@@ -1,12 +1,12 @@
 // includes/cuda/deti_coins_cuda_search.h
 
-#ifndef DETI_COINS_CUDA_SEARCH
-#define DETI_COINS_CUDA_SEARCH
+#ifndef DETI_COINS_CUDA_SEARCH_H
+#define DETI_COINS_CUDA_SEARCH_H
 
 #include <cuda.h>
 #include "deti_coins_cuda_common.h"
 
-#define CUDA_ITERATIONS_PER_BATCH 1000000
+#define CUDA_ITERATIONS_PER_BATCH 1000 // Reduced for debugging
 
 static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
 {
@@ -37,6 +37,21 @@ static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
         }
     }
 
+    printf("Initial template:\n");
+    for (int i = 0; i < 52; i++)
+    {
+        printf("%c", bytes[i]);
+    }
+    printf("\n");
+
+    // Calculate MD5 of template on CPU for comparison
+    u32_t cpu_hash[4];
+    md5_cpu(template_data, cpu_hash);
+    hash_byte_reverse(cpu_hash);
+    printf("CPU hash of template: %08x %08x %08x %08x\n",
+           cpu_hash[0], cpu_hash[1], cpu_hash[2], cpu_hash[3]);
+    printf("CPU power: %u\n", deti_coin_power(cpu_hash));
+
     // Initialize CUDA
     initialize_cuda(0, "deti_coins_cuda_kernel_search.cubin", "mine_deti_coins_kernel", 0, sizeof(struct FoundCoins));
 
@@ -52,6 +67,8 @@ static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
     tmpl.n_random_words = n_random_words;
 
     printf("Starting CUDA search with %u random words...\n", n_random_words);
+    printf("Using %d blocks with %d threads per block\n", THREADS_PER_BLOCK, MAX_BLOCKS);
+    printf("Iterations per thread: %d\n", iterations_per_thread);
 
     // Main search loop
     while (!stop_request)
@@ -65,12 +82,14 @@ static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
 
         // Launch kernel
         CU_CALL(cuLaunchKernel, (kernel,
-                                 MAX_BLOCKS, 1, 1,        // Grid dimensions
-                                 THREADS_PER_BLOCK, 1, 1, // Block dimensions
-                                 0,                       // Shared memory bytes
-                                 0,                       // Stream
-                                 kernel_args,             // Arguments
-                                 0));                     // Extra (must be 0)
+                                 16, 1, 1, // Reduced grid dimensions for debug
+                                 THREADS_PER_BLOCK, 1, 1,
+                                 0,
+                                 0,
+                                 kernel_args,
+                                 0));
+
+        CU_CALL(cuCtxSynchronize, ());
 
         // Copy results back
         CU_CALL(cuMemcpyDtoH, (&found_coins, d_found_coins, sizeof(struct FoundCoins)));
@@ -83,11 +102,10 @@ static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
         }
 
         total_attempts += CUDA_ITERATIONS_PER_BATCH;
+        printf("Completed batch - attempts: %lu, coins: %lu\n", total_attempts, total_coins);
 
-        if (total_attempts % (CUDA_ITERATIONS_PER_BATCH * 100) == 0)
-        {
-            printf("Progress: %lu attempts, %lu coins found\n", total_attempts, total_coins);
-        }
+        if (total_attempts > 10000)
+            break; // Exit after some attempts for debugging
     }
 
     // Cleanup
