@@ -41,12 +41,18 @@ __device__ void atomic_store_coin(uint32_t* storage, const char* coin_str, const
     uint32_t idx = atomicAdd(storage, 1);
     if (idx < MAX_COINS) {
         uint32_t base_offset = 1 + idx * 13; // Skip counter, each coin takes 13 words
+        uint32_t temp[13] = {0}; // Temporary buffer for proper byte ordering
         
-        // Store coin data (52 bytes / 13 words)
-        uint32_t* dst = storage + base_offset;
-        const uint32_t* src = (const uint32_t*)coin_str;
+        // Pack bytes into words properly
+        for (int i = 0; i < 52; i++) {
+            int word_idx = i / 4;
+            int byte_idx = i % 4;
+            temp[word_idx] |= ((uint32_t)(uint8_t)coin_str[i]) << (byte_idx * 8);
+        }
+        
+        // Store the properly packed words
         for (int i = 0; i < 13; i++) {
-            dst[i] = src[i];
+            storage[base_offset + i] = temp[i];
         }
     }
 }
@@ -63,7 +69,7 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     // Generate unique coin attempt based on thread ID
     generate_printable_string(coin, tid, n_random_words);
     
-    // MD5 state variables - these need to be declared before CUSTOM_MD5_CODE()
+    // MD5 state variables
     uint32_t a, b, c, d;
     
     // Initialize state
