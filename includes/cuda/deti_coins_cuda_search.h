@@ -4,9 +4,9 @@
 #define DETI_COINS_CUDA_SEARCH_H
 
 #include <cuda.h>
+#include "deti_coins_cuda_common.h"
 
 #define CUDA_ITERATIONS_PER_BATCH 1000000
-#define MAX_FOUND_COINS_PER_BATCH 1024
 
 static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
 {
@@ -15,6 +15,7 @@ static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
     u32_t template_data[13];
     u08_t *bytes = (u08_t *)template_data;
     u64_t total_attempts = 0, total_coins = 0;
+    int32_t iterations_per_thread = CUDA_ITERATIONS_PER_BATCH / (THREADS_PER_BLOCK * MAX_BLOCKS);
 
     // Initialize template with required prefix
     const u08_t prefix[] = {'D', 'E', 'T', 'I', ' ', 'c', 'o', 'i', 'n', ' '};
@@ -52,30 +53,30 @@ static void deti_coins_cuda_search(u32_t n_random_words, bool is_client)
 
     printf("Starting CUDA search with %u random words...\n", n_random_words);
 
-    struct FoundCoins found_coins;
-    void *args[] = {&tmpl, &d_found_coins, &CUDA_ITERATIONS_PER_BATCH};
-
     // Main search loop
     while (!stop_request)
     {
+        struct FoundCoins found_coins = {0}; // Initialize with zero count
+
         // Reset found coins counter
-        found_coins.count = 0;
         CU_CALL(cuMemcpyHtoD, (d_found_coins, &found_coins, sizeof(struct FoundCoins)));
+
+        void *kernel_args[] = {&tmpl, &d_found_coins, &iterations_per_thread};
 
         // Launch kernel
         CU_CALL(cuLaunchKernel, (kernel,
-                                 256, 1, 1, // Grid dimensions
-                                 256, 1, 1, // Block dimensions
-                                 0,         // Shared memory bytes
-                                 0,         // Stream
-                                 args,      // Arguments
-                                 0));       // Size of arguments
+                                 MAX_BLOCKS, 1, 1,        // Grid dimensions
+                                 THREADS_PER_BLOCK, 1, 1, // Block dimensions
+                                 0,                       // Shared memory bytes
+                                 0,                       // Stream
+                                 kernel_args,             // Arguments
+                                 0));                     // Extra (must be 0)
 
         // Copy results back
         CU_CALL(cuMemcpyDtoH, (&found_coins, d_found_coins, sizeof(struct FoundCoins)));
 
         // Process found coins
-        for (int i = 0; i < found_coins.count && i < MAX_FOUND_COINS_PER_BATCH; i++)
+        for (int i = 0; i < found_coins.count && i < COINS_BUFFER_SIZE; i++)
         {
             is_client ? client_save_deti_coin(found_coins.coins[i]) : save_deti_coin(found_coins.coins[i]);
             total_coins++;

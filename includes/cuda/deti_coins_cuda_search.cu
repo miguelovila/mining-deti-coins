@@ -1,26 +1,12 @@
+// includes/cuda/deti_coins_cuda_search.cu
+
 #include <stdint.h>
 #include <cuda_runtime.h>
 #include "../../includes/md5.h"
-
-// Constants for CUDA implementation
-#define THREADS_PER_BLOCK 256
-#define MAX_BLOCKS 65535
-#define COINS_BUFFER_SIZE 1024
-
-// Structure to store found coins
-struct FoundCoins {
-    int32_t count;
-    uint32_t coins[COINS_BUFFER_SIZE][13];
-};
-
-// Device-side structure for coin template
-struct CoinTemplate {
-    uint32_t data[13];
-    int32_t n_random_words;
-};
+#include "deti_coins_cuda_common.h"
 
 // Initialize coin template with pattern
-__device__ void init_coin_data(uint32_t* coin, const CoinTemplate* tmpl, int32_t thread_id) {
+__device__ void init_coin_data(uint32_t* coin, const struct CoinTemplate* tmpl, int32_t thread_id) {
     // Copy template
     for(int i = 0; i < 13; i++) {
         coin[i] = tmpl->data[i];
@@ -40,8 +26,8 @@ __device__ void init_coin_data(uint32_t* coin, const CoinTemplate* tmpl, int32_t
 
 // CUDA kernel for mining DETI coins
 extern "C" __global__ void mine_deti_coins_kernel(
-    CoinTemplate tmpl,
-    FoundCoins* found_coins,
+    struct CoinTemplate tmpl,
+    struct FoundCoins* found_coins,
     int32_t iterations_per_thread
 ) {
     const int32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
