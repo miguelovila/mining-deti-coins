@@ -1,130 +1,97 @@
-// includes/cuda/deti_coins_cuda_search.cu
+#include <stdint.h>  
+#include "../md5.h"
 
-#include <stdint.h>
-#include <stdio.h>
-#include <cuda_runtime.h>
-#include "../../includes/md5.h"
-#include "deti_coins_cuda_common.h"
+#define MAX_SIZE 1024
+#define TEMPLATE_SIZE 52
 
-__device__ uint32_t count_trailing_zeros_gpu(uint32_t* hash) {
-    // Start counting from least significant bits (hash[3])
-    if(hash[3] == 0) {
-        if(hash[2] == 0) {
-            if(hash[1] == 0) {
-                if(hash[0] == 0) {
-                    return 128;
+typedef uint8_t u08_t;   // Alias for unsigned 8-bit integer
+typedef uint32_t u32_t;  // Alias for unsigned 32-bit integer
+
+__constant__ uint8_t template_str[TEMPLATE_SIZE] = {
+    'D', 'E', 'T', 'I', ' ', 'c', 'o', 'i', 'n', ' ',
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+    ' ', '\n'
+};
+
+__device__ void build_coin(uint8_t *coin, uint32_t thread_num, uint32_t custom_word_1, uint32_t custom_word_2, uint32_t custom_word_3) {
+    for (int i = 0; i < TEMPLATE_SIZE; i++) {
+        coin[i] = template_str[i];
+    }
+
+    ((uint32_t *)coin)[4] = custom_word_1;
+    ((uint32_t *)coin)[5] = custom_word_2;
+    ((uint32_t *)coin)[6] = custom_word_3;
+
+    uint32_t n = thread_num;
+    ((uint32_t *)coin)[8] = (n % 64) | ((n / 64 % 64) << 8) | ((n / 4096 % 64) << 16) | ((n / 262144) << 24);
+}
+
+__device__ void compute_md5(uint32_t *coin, uint32_t *hash, uint32_t *state, uint32_t *x) {
+    #define C(c) (c)
+    #define ROTATE(x, n) (((x) << (n)) | ((x) >> (32 - (n))))
+    #define DATA(idx) coin[idx]
+    #define HASH(idx) hash[idx]
+    #define STATE(idx) state[idx]
+    #define X(idx) x[idx]
+
+    // MD5 state variables
+    uint32_t a, b, c, d;
+    a = state[0];  
+    b = state[1];
+    c = state[2];
+    d = state[3];
+
+    CUSTOM_MD5_CODE();
+}
+
+__device__ void store_coin_if_valid(uint32_t *storage_area, uint32_t *coin, uint32_t *hash) {
+        if (hash[3] == 0u) {
+            int offset = atomicAdd(&storage_area[0], 13);  // Reserve space atomically
+            if (offset + 13 < MAX_SIZE) {
+                for (int i = 0; i < 13; i++) {
+                    storage_area[offset + i] = coin[i];
                 }
-                return 96 + __clz(__brev(hash[0]));
             }
-            return 64 + __clz(__brev(hash[1]));
         }
-        return 32 + __clz(__brev(hash[2]));
-    }
-    return __clz(__brev(hash[3]));
 }
 
-__device__ void verify_hash(uint32_t* coin, uint32_t* hash, uint32_t power) {
-    if(threadIdx.x == 0 && blockIdx.x == 0) {
-        printf("\nPOSSIBLE COIN FOUND!\n");
-        unsigned char* bytes = (unsigned char*)coin;
-        printf("Coin data: ");
-        for(int i = 0; i < 52; i++) {
-            printf("%c", bytes[i]);
-        }
-        printf("\nHash: %08x %08x %08x %08x\n", hash[0], hash[1], hash[2], hash[3]);
-        printf("Power calculated: %u\n\n", power);
-    }
-}
-
-extern "C" __global__ void mine_deti_coins_kernel(
-    struct CoinTemplate tmpl,
-    struct FoundCoins* found_coins,
-    int32_t seed
+extern "C" __global__ void deti_coins_cuda_kernel_search(
+    uint32_t *deti_coins_storage_area,
+    uint32_t custom_word_1,
+    uint32_t custom_word_2,
+    uint32_t custom_word_3
 ) {
-    const int32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t coin[13];
-    uint32_t hash[4];
+    __shared__ uint32_t shared_custom_words[2];
     
-    // Copy template
-    for(int i = 0; i < 13; i++) {
-        coin[i] = tmpl.data[i];
+    const uint32_t thread_num = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    // Coalesced memory access pattern
+    __align__(16) uint8_t coin_buffer[TEMPLATE_SIZE];
+    uint32_t hash[4], state[4], x[16];
+    
+    if (threadIdx.x == 0) {
+        shared_custom_words[0] = custom_word_1;
+        shared_custom_words[1] = custom_word_2;
     }
+    __syncthreads();
     
-    // Initialize search space based on thread ID
-    unsigned char* bytes = (unsigned char*)coin;
-    int32_t start_pos = 10 + tmpl.n_random_words * 4;
-    
-    // Set initial value based on thread ID and seed
-    int32_t thread_space = tid + seed * blockDim.x * gridDim.x;
-    for(int32_t i = start_pos; i < 51; i++) {
-        bytes[i] = ' ' + (thread_space % 95);
-        thread_space /= 95;
-    }
-    
-    // Try multiple search space variations
-    for(int32_t iter = 0; iter < ITERATIONS_PER_THREAD; iter++) {
-        // Compute MD5 hash
-        uint32_t state[4], x[16], a, b, c, d;
-        #define C(c) (c)
-        #define ROTATE(x,n) (((x) << (n)) | ((x) >> (32 - (n))))
-        #define DATA(idx) coin[idx]
-        #define HASH(idx) hash[idx]
-        #define STATE(idx) state[idx]
-        #define X(idx) x[idx]
-        CUSTOM_MD5_CODE();
-        #undef C
-        #undef ROTATE
-        #undef DATA
-        #undef HASH
-        #undef STATE
-        #undef X
+    #pragma unroll
+    for (int att = 0; att < 95; att++) {
+        build_coin(coin_buffer, thread_num, 
+                   shared_custom_words[0], 
+                   shared_custom_words[1], 
+                   custom_word_3);
+
+        *((uint32_t*)coin_buffer + 8) = thread_num + att * gridDim.x * blockDim.x;
         
-        // Reverse byte order of each word
-        for(int i = 0; i < 4; i++) {
-            uint32_t v = hash[i];
-            hash[i] = ((v & 0xff000000) >> 24) |
-                     ((v & 0x00ff0000) >> 8)  |
-                     ((v & 0x0000ff00) << 8)  |
-                     ((v & 0x000000ff) << 24);
-        }
+        compute_md5((uint32_t *)coin_buffer, hash, state, x);
         
-        // Check if we found a coin
-        uint32_t power = count_trailing_zeros_gpu(hash);
-        
-        // Debug output for first thread of first block
-        if(tid == 0 && iter < 5) {
-            verify_hash(coin, hash, power);
-        }
-        
-        if(power >= 32) {
-            int32_t idx = atomicAdd(&found_coins->count, 1);
-            if(idx < COINS_BUFFER_SIZE) {
-                // Save the coin
-                for(int i = 0; i < 13; i++) {
-                    found_coins->coins[idx][i] = coin[i];
-                }
-                verify_hash(coin, hash, power);
-            }
-        }
-        
-        // Move to next search space variation
-        bool carry = true;
-        for(int32_t i = start_pos; carry && i < 51; i++) {
-            bytes[i]++;
-            if(bytes[i] > '~') {
-                bytes[i] = ' ';
-            } else {
-                carry = false;
-            }
-        }
-        
-        // If we've exhausted this search space, move to a new area
-        if(carry) {
-            thread_space = tid + (seed + iter + 1) * blockDim.x * gridDim.x;
-            for(int32_t i = start_pos; i < 51; i++) {
-                bytes[i] = ' ' + (thread_space % 95);
-                thread_space /= 95;
-            }
-        }
+        // hash validation
+        store_coin_if_valid(deti_coins_storage_area, 
+                            (uint32_t *)coin_buffer, 
+                            hash);
     }
 }
