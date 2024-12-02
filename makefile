@@ -43,6 +43,8 @@ clean:
 #
 deti_coins_webassembly_test:
 	cc -Wall -O2 deti_coins_webassembly.c -o deti_coins_webassembly
+deti_coins_webassembly:
+	emcc -Wall -O2 deti_coins_webassembly.c -o deti_coins_webassembly.html
 
 #
 # compile for Intel/AMD processors without CUDA
