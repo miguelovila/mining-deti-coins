@@ -4,7 +4,6 @@
 typedef unsigned char u08_t;
 typedef unsigned int u32_t;
 
-// The template string length is 10
 __device__ __constant__ u08_t coin_template[10] = {
     'D', 'E', 'T', 'I', ' ', 'c', 'o', 'i', 'n', ' '
 };
@@ -24,6 +23,22 @@ __device__ void init_coin_template(u08_t *bytes) {
     bytes[51] = '\n';
 }
 
+__device__ uint32_t count_trailing_zeros(u32_t hash[4]) {
+    for(int i = 3; i >= 0; i--) {
+        if(hash[i] != 0) {
+            // Count trailing zeros in this word
+            uint32_t val = hash[i];
+            uint32_t count = 0;
+            while((val & 1) == 0 && count < 32) {
+                count++;
+                val >>= 1;
+            }
+            return i * 32 + count;
+        }
+    }
+    return 128;
+}
+
 __device__ void save_valid_coin(u32_t *storage, u32_t *coin) {
     u32_t idx = atomicAdd(&storage[0], 13); // Reserve space for one coin
     if(idx + 13 <= 1024) { // Ensure we don't overflow
@@ -41,17 +56,17 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     const u32_t tid = blockDim.x * blockIdx.x + threadIdx.x;
     const u32_t start_pos = 10 + n_random_words * 4;
     
-    u32_t coin[13];
+    u32_t coin[13] = {0};  // Initialize all to 0
     u32_t hash[4], state[4], x[16];
     u08_t *bytes = (u08_t *)coin;
     
     // Initialize coin template
     init_coin_template(bytes);
     
-    // Add some randomness based on thread ID
+    // Generate unique sequence for this thread
     u32_t seed = tid;
     for(u32_t i = 0; i < n_random_words * 4 && i + 10 < 51; i++) {
-        seed = (seed * 1664525u + 1013904223u);
+        seed = ((seed * 1664525u + 1013904223u) & 0xffffffffu);
         bytes[10 + i] = ' ' + (seed % 95); // ASCII 32-126
     }
     
@@ -86,14 +101,14 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     #undef STATE
     #undef X
     
-    // Byte-reverse hash words
-    hash[0] = __byte_perm(hash[0], 0, 0x0123);
-    hash[1] = __byte_perm(hash[1], 0, 0x0123);
-    hash[2] = __byte_perm(hash[2], 0, 0x0123);
-    hash[3] = __byte_perm(hash[3], 0, 0x0123);
+    // Reverse bytes in each hash word
+    for(int i = 0; i < 4; i++) {
+        hash[i] = __byte_perm(hash[i], 0, 0x0123);
+    }
     
-    // Check trailing zeros
-    if(hash[3] == 0) {
+    // Check for 32+ trailing zeros
+    uint32_t zeros = count_trailing_zeros(hash);
+    if(zeros >= 32) {
         save_valid_coin(storage, coin);
     }
 }
