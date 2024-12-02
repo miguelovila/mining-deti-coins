@@ -5,7 +5,23 @@
 #include "../../includes/md5.h"
 #include "deti_coins_cuda_common.h"
 
-// Initialize coin template with pattern
+// Helper function to count trailing zeros
+__device__ uint32_t count_trailing_zeros(uint32_t hash[4]) {
+    uint32_t n;
+    
+    if(hash[3] != 0)
+        n = __clz(__brev(hash[3]));  // Count leading zeros after bit reversal
+    else if(hash[2] != 0)
+        n = 32 + __clz(__brev(hash[2]));
+    else if(hash[1] != 0)
+        n = 64 + __clz(__brev(hash[1]));
+    else if(hash[0] != 0)
+        n = 96 + __clz(__brev(hash[0]));
+    else
+        n = 128;
+    return n;
+}
+
 __device__ void init_coin_data(uint32_t* coin, const struct CoinTemplate* tmpl, int32_t thread_id) {
     // Copy template
     for(int i = 0; i < 13; i++) {
@@ -24,7 +40,6 @@ __device__ void init_coin_data(uint32_t* coin, const struct CoinTemplate* tmpl, 
     }
 }
 
-// CUDA kernel for mining DETI coins
 extern "C" __global__ void mine_deti_coins_kernel(
     struct CoinTemplate tmpl,
     struct FoundCoins* found_coins,
@@ -35,10 +50,8 @@ extern "C" __global__ void mine_deti_coins_kernel(
     uint32_t hash[4];
     uint32_t state[4], x[16], a, b, c, d;
     
-    // Initialize coin data for this thread
     init_coin_data(coin, &tmpl, tid);
     
-    // Main mining loop
     for(int32_t iter = 0; iter < iterations_per_thread; iter++) {
         // Compute MD5 hash
         #define C(c) (c)
@@ -55,18 +68,15 @@ extern "C" __global__ void mine_deti_coins_kernel(
         #undef STATE
         #undef X
         
-        // Reverse byte order
+        // Byte-reverse each word to match CPU implementation
         for(int i = 0; i < 4; i++) {
-            uint32_t v = hash[i];
-            hash[i] = ((v & 0xff) << 24) | ((v & 0xff00) << 8) |
-                     ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24);
+            hash[i] = __byte_perm(hash[i], 0, 0x0123);
         }
         
-        // Check if we found a coin
-        if(hash[3] == 0) {
+        // Check if we found a coin (>= 32 trailing zeros)
+        if(count_trailing_zeros(hash) >= 32) {
             int32_t idx = atomicAdd(&found_coins->count, 1);
             if(idx < COINS_BUFFER_SIZE) {
-                // Save the coin
                 for(int i = 0; i < 13; i++) {
                     found_coins->coins[idx][i] = coin[i];
                 }
@@ -85,7 +95,6 @@ extern "C" __global__ void mine_deti_coins_kernel(
             }
         }
         
-        // If we exhausted the search space, generate new content
         if(carry) {
             init_coin_data(coin, &tmpl, tid + iter * gridDim.x * blockDim.x);
         }
