@@ -29,7 +29,7 @@ static void md5_cpu_avx512(v16si *interleaved16_data, v16si *interleaved16_hash)
               (int)(c), (int)(c), (int)(c), (int)(c), \
               (int)(c), (int)(c), (int)(c), (int)(c), \
               (int)(c), (int)(c), (int)(c), (int)(c) }
-#define ROTATE(x, n) (_mm512_rol_epi32((__m512i)(x), (n)))
+#define ROTATE(x, n) (__builtin_ia32_prold512_mask(x,n,x,0xFFFF))
 #define DATA(idx) interleaved16_data[idx]
 #define HASH(idx) interleaved16_hash[idx]
 #define STATE(idx) interleaved16_state[idx]
