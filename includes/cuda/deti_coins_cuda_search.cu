@@ -1,7 +1,10 @@
 #include <stdint.h>
 #include "../md5.h"
 
-__device__ void generate_coin(u08_t *bytes, u32_t thread_id) {
+typedef unsigned char u08_t;
+typedef unsigned int u32_t;
+
+__device__ void generate_coin(unsigned char *bytes, uint32_t thread_id) {
     // Mandatory prefix
     bytes[0] = 'D';
     bytes[1] = 'E';
@@ -35,15 +38,15 @@ __device__ uint32_t swap_bytes(uint32_t value) {
            ((value >> 24) & 0xFF);
 }
 
-extern "C" __global__ void deti_coins_cuda_kernel_search(u32_t *storage) {
-    const u32_t thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+extern "C" __global__ void deti_coins_cuda_kernel_search(uint32_t *storage) {
+    const uint32_t thread_id = blockIdx.x * blockDim.x + threadIdx.x;
     
-    u32_t coin[13] = {0};
-    u32_t hash[4], state[4], x[16];
-    u32_t a, b, c, d;
+    uint32_t coin[13] = {0};
+    uint32_t hash[4], state[4], x[16];
+    uint32_t a, b, c, d;
 
     // Generate coin
-    generate_coin((u08_t*)coin, thread_id);
+    generate_coin((unsigned char*)coin, thread_id);
 
     // Initialize MD5 state
     state[0] = 0x67452301u;
