@@ -4,86 +4,103 @@
 typedef unsigned char u08_t;
 typedef unsigned int u32_t;
 
-__device__ __constant__ u08_t coin_template[10] = {
-    'D', 'E', 'T', 'I', ' ', 'c', 'o', 'i', 'n', ' '
+__device__ __constant__ u32_t initial_state[4] = {
+    0x67452301u, 0xEFCDAB89u, 0x98BADCFEu, 0x10325476u
 };
 
-__device__ void init_coin(u08_t *bytes) {
-    // Initialize with template
-    for(int i = 0; i < 10; i++) {
-        bytes[i] = coin_template[i];
+__device__ void hash_byte_reverse(u32_t hash[4]) {
+    #pragma unroll
+    for(int i = 0; i < 4; i++) {
+        u32_t val = hash[i];
+        hash[i] = ((val & 0xFF) << 24) | 
+                  ((val & 0xFF00) << 8) |
+                  ((val & 0xFF0000) >> 8) |
+                  ((val & 0xFF000000) >> 24);
     }
-    // Fill with spaces
+}
+
+__device__ uint32_t deti_coin_power(u32_t hash[4]) {
+    if(hash[3] != 0) {
+        return __clz(hash[3]);
+    }
+    if(hash[2] != 0) {
+        return 32 + __clz(hash[2]);
+    }
+    if(hash[1] != 0) {
+        return 64 + __clz(hash[1]);
+    }
+    if(hash[0] != 0) {
+        return 96 + __clz(hash[0]);
+    }
+    return 128;
+}
+
+__device__ void initialize_coin(u32_t* coin, uint32_t tid) {
+    u08_t* bytes = (u08_t*)coin;
+    
+    // Mandatory prefix
+    bytes[0] = 'D';
+    bytes[1] = 'E';
+    bytes[2] = 'T';
+    bytes[3] = 'I';
+    bytes[4] = ' ';
+    bytes[5] = 'c';
+    bytes[6] = 'o';
+    bytes[7] = 'i';
+    bytes[8] = 'n';
+    bytes[9] = ' ';
+    
+    // Fill middle with unique character sequence
     for(int i = 10; i < 51; i++) {
-        bytes[i] = ' ';
+        uint32_t x = tid + i;
+        x = ((x >> 16) ^ x) * 0x45d9f3b;
+        x = ((x >> 16) ^ x) * 0x45d9f3b;
+        x = (x >> 16) ^ x;
+        bytes[i] = ' ' + (x % 95);  // ASCII 32-126
     }
-    // Add newline
+    
+    // Mandatory termination
     bytes[51] = '\n';
 }
 
-__device__ u32_t byte_swap(u32_t value) {
-    value = ((value << 8) & 0xFF00FF00) | ((value >> 8) & 0xFF00FF);
-    return (value << 16) | (value >> 16);
-}
-
-__device__ void save_valid_coin(u32_t *storage, u32_t *coin, u32_t *hash) {
-    // Byte swap hash values for proper validation
-    for(int i = 0; i < 4; i++) {
-        hash[i] = byte_swap(hash[i]);
-    }
-    
-    // Validate trailing zeros
-    if(hash[3] == 0) {
-        u32_t idx = atomicAdd(&storage[0], 13);
-        if(idx + 13 <= 1024) {
-            for(int i = 0; i < 13; i++) {
-                storage[idx + i] = coin[i];
-            }
+__device__ void save_valid_coin(u32_t* storage, u32_t* coin) {
+    uint32_t idx = atomicAdd(&storage[0], 13);
+    if(idx + 13 <= 1024) {
+        #pragma unroll
+        for(int i = 0; i < 13; i++) {
+            storage[idx + i] = coin[i];
         }
     }
 }
 
 extern "C" __global__ void deti_coins_cuda_kernel_search(
-    u32_t *storage,
+    u32_t* storage,
     u32_t n_random_words
 ) {
-    const u32_t tid = blockDim.x * blockIdx.x + threadIdx.x;
-    __shared__ u32_t shared_coin[13];
-    u32_t hash[4], state[4], x[16];
-    u08_t *bytes = (u08_t *)shared_coin;
+    const uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
     
-    if (threadIdx.x == 0) {
-        init_coin(bytes);
-    }
-    __syncthreads();
-    
-    // Copy to local array
+    // Local storage
     u32_t coin[13];
-    for(int i = 0; i < 13; i++) {
-        coin[i] = shared_coin[i];
+    u32_t hash[4], state[4], x[16];
+    
+    // Initialize coin with template and unique sequence
+    initialize_coin(coin, tid);
+    
+    // MD5 state variables
+    u32_t a, b, c, d;
+    
+    // Initialize state
+    #pragma unroll
+    for(int i = 0; i < 4; i++) {
+        state[i] = initial_state[i];
     }
-    bytes = (u08_t *)coin;
     
-    // Add randomization based on thread ID
-    u32_t seed = tid;
-    for(u32_t i = 0; i < n_random_words * 4 && i + 10 < 51; i++) {
-        seed = seed * 1664525u + 1013904223u;
-        bytes[10 + i] = ' ' + (seed % 95);
-    }
+    a = state[0];
+    b = state[1];
+    c = state[2];
+    d = state[3];
     
-    // Initialize MD5 state
-    state[0] = 0x67452301u;
-    state[1] = 0xEFCDAB89u;
-    state[2] = 0x98BADCFEu;
-    state[3] = 0x10325476u;
-    
-    // MD5 variables
-    u32_t a = state[0];
-    u32_t b = state[1];
-    u32_t c = state[2];
-    u32_t d = state[3];
-    
-    // Calculate MD5 hash
+    // Calculate hash
     #define C(c) (c)
     #define ROTATE(x,n) (((x) << (n)) | ((x) >> (32 - (n))))
     #define DATA(idx) coin[idx]
@@ -100,5 +117,11 @@ extern "C" __global__ void deti_coins_cuda_kernel_search(
     #undef STATE
     #undef X
     
-    save_valid_coin(storage, coin, hash);
+    // Byte reverse hash for correct zero counting
+    hash_byte_reverse(hash);
+    
+    // Check number of trailing zeros and save if valid
+    if(deti_coin_power(hash) >= 32) {
+        save_valid_coin(storage, coin);
+    }
 }
