@@ -2,6 +2,7 @@ deti_coins_intel
 deti_coins_apple
 deti_coins_intel_cuda
 md5_cuda_kernel.cubin
+deti_coins_webassembly
 deti_coins_cuda_kernel_search.cubin
 .vscode
 deti_coins_vault.txt
