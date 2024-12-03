@@ -1,4 +1,5 @@
 deti_coins_intel
+deti_coins.o
 deti_coins_apple
 deti_coins_intel_cuda
 md5_cuda_kernel.cubin
