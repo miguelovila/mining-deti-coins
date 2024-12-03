@@ -24,6 +24,7 @@ static char client_hostname[9];
 #define TECH_TYPE_AVX2 3
 #define TECH_TYPE_AVX512 4
 #define TECH_TYPE_CUDA 5
+#define TECH_TYPE_SPECIAL 6
 
 // Protocol message structure
 typedef struct

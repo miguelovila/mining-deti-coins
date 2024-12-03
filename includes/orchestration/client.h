@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <omp.h>
 
-static void client_search_wrapper(const char *server_ip, int port, u32_t seconds, uint32_t tech_type, uint32_t omp)
+static void client_wrapper(const char *server_ip, int port, u32_t seconds, uint32_t tech_type, uint32_t omp, char *search_string)
 {
     // Get hostname
     if (gethostname(client_hostname, sizeof(client_hostname)) < 0)
@@ -112,9 +112,10 @@ static void client_search_wrapper(const char *server_ip, int port, u32_t seconds
         deti_coins_cuda_search(n_random_words, true);
         break;
     #endif
-    #ifdef DETI_COINS_CPU_SPECIAL_SEARCH
+#ifdef DETI_COINS_CPU_AVX2_OMP_SPECIAL_SEARCH
     case TECH_TYPE_SPECIAL:
-        deti_coins_cpu_special_search();
+        printf("[INF] Special search ignores n_random_words\n");
+        deti_coins_cpu_avx2_omp_special_search(search_string, true);
         break;
     #endif
     default:
@@ -126,6 +127,17 @@ static void client_search_wrapper(const char *server_ip, int port, u32_t seconds
     server_socket = -1;
 
     printf("[INF] Disconnected from server\n");
+}
+
+// just an alias for the client_wrapper for not repeating the same code :)
+static void special_search_wrapper(const char *server_ip, int port, u32_t seconds, char *buffer)
+{
+    client_wrapper(server_ip, port, seconds, TECH_TYPE_SPECIAL, 1, buffer);
+}
+
+static void client_search_wrapper(const char *server_ip, int port, u32_t seconds, uint32_t tech_type, uint32_t omp)
+{
+    client_wrapper(server_ip, port, seconds, tech_type, omp, NULL);
 }
 
 #endif

@@ -124,6 +124,7 @@ static void alarm_signal_handler(int dummy)
 #ifdef MD5_CPU_AVX2
 #include "includes/avx2/deti_coins_cpu_avx2_search.h"
 #include "includes/avx2/deti_coins_cpu_avx2_omp_search.h"
+#include "includes/avx2/deti_coins_cpu_avx2_omp_special_search.h"
 #endif
 #ifdef MD5_CPU_AVX512
 #include "includes/avx512/deti_coins_cpu_avx512_search.h"
@@ -254,11 +255,28 @@ int main(int argc, char **argv)
             deti_coins_cuda_search(n_random_words, false);
             break;
         #endif
-        #ifdef DETI_COINS_CPU_SPECIAL_SEARCH
+        #ifdef DETI_COINS_CPU_AVX2_OMP_SPECIAL_SEARCH
         case 'A':
-            printf("searching for %u seconds using deti_coins_cpu_special_search()\n", seconds);
+            printf("searching for %u seconds using deti_coins_cpu_avx2_omp_special_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_special_search();
+
+            // ask for a search string
+            printf("Enter a search string (36 char max): ");
+
+            char *buffer = NULL; int read; unsigned long len;
+            read = getline(&buffer, &len, stdin);
+
+            if (-1 == read) {
+                printf("[ERR] No line read\n");
+                exit(1);
+            }
+            // remove last character (/n)
+            buffer[read - 1] = '\0';
+            if (strlen(buffer) > 37)
+                printf("[ERR] Search string too long\n"),
+                exit(1);
+            deti_coins_cpu_avx2_omp_special_search(buffer, false);
+            free(buffer);
             break;
         #endif
         }
@@ -383,11 +401,31 @@ int main(int argc, char **argv)
             client_search_wrapper(ip, port, seconds, TECH_TYPE_CUDA, 0); 
             break;
         #endif
-        #ifdef DETI_COINS_CPU_SPECIAL_SEARCH
+        #ifdef DETI_COINS_CPU_AVX2_OMP_SPECIAL_SEARCH
         case 'A':
-            printf("searching for %u seconds using deti_coins_cpu_special_search()\n", seconds);
+            printf("searching for %u seconds using deti_coins_cpu_avx2_omp_special_search()\n", seconds);
             fflush(stdout);
-            deti_coins_cpu_special_search();
+
+            // ask for a search string
+            printf("Enter a search string (36 char max): ");
+
+            char *buffer = NULL;
+            int read;
+            unsigned long len;
+            read = getline(&buffer, &len, stdin);
+
+            if (-1 == read)
+            {
+                printf("[ERR] No line read\n");
+                exit(1);
+            }
+            // remove last character (/n)
+            buffer[read - 1] = '\0';
+            if (strlen(buffer) > 37)
+                printf("[ERR] Search string too long\n"),
+                    exit(1);
+            special_search_wrapper(ip, port, seconds, buffer);
+            free(buffer);
             break;
         #endif
         }
@@ -424,8 +462,8 @@ int main(int argc, char **argv)
     #ifdef DETI_COINS_CUDA_SEARCH
         fprintf(stderr, "       %s -c9  [ip] [port] [seconds] [n_random_words] # connect to a mine orchestraor using md5_cuda()\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CPU_SPECIAL_SEARCH
-        fprintf(stderr, "       %s -cA  [ip] [port] [seconds]                  # connect to a mine orchestraor using md5_cpu_special()\n", argv[0]);
+#ifdef DETI_COINS_CPU_AVX2_OMP_SPECIAL_SEARCH
+        fprintf(stderr, "       %s -cA  [ip] [port] [seconds]                  # connect to a mine orchestraor using md5_cpu_avx2_omp_special_search()\n", argv[0]);
     #endif
     fprintf(stderr, "                          - port is the server's port number\n");
     fprintf(stderr, "                          - ip is the IPv4 address of the server\n");
@@ -457,8 +495,8 @@ int main(int argc, char **argv)
     #ifdef DETI_COINS_CUDA_SEARCH
         fprintf(stderr, "       %s -s9 [seconds] [n_random_words]   # search for DETI coins using CUDA\n", argv[0]);
     #endif
-    #ifdef DETI_COINS_CPU_SPECIAL_SEARCH
-        fprintf(stderr, "       %s -sA [seconds] [ignored]          # special search for DETI coins using md5_cpu()\n", argv[0]);
+#ifdef DETI_COINS_CPU_AVX2_OMP_SPECIAL_SEARCH
+        fprintf(stderr, "       %s -sA [seconds] [ignored]          # special search for DETI coins using md5_cpu_avx2_omp_special_search()\n", argv[0]);
     #endif
     fprintf(stderr, "                          - seconds is the amount of time spent in the search\n");
     fprintf(stderr, "                          - n_random_words is the number of 4-byte words to use\n");

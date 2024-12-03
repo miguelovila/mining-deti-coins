@@ -25,7 +25,8 @@ static void handle_client(int client_socket, u32_t n_random_words)
         msg.tech_type == TECH_TYPE_AVX ? "AVX" :
         msg.tech_type == TECH_TYPE_AVX2 ? "AVX2" :
         msg.tech_type == TECH_TYPE_AVX512 ? "AVX512" :
-        msg.tech_type == TECH_TYPE_CUDA ? "CUDA" : "Unknown",
+        msg.tech_type == TECH_TYPE_CUDA ? "CUDA" :
+        msg.tech_type == TECH_TYPE_SPECIAL ? "AVX2 Special Search" : "Unknown",
         msg.omp_threads > 0 ? " with OpenMP (" : ". (",
         msg.omp_threads > 0 ? "" : "",
         msg.omp_threads > 0 ? msg.omp_threads : 1,
