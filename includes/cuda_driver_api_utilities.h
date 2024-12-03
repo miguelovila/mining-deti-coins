@@ -125,13 +125,16 @@ static u32_t       *host_data;
 static u32_t       *host_hash;
 static CUdeviceptr  device_data;
 static CUdeviceptr  device_hash;
-
+static CUdeviceptr  device_v1;
+static CUdeviceptr  device_v2;
+static CUdeviceptr  device_array;
 
 //
 // initialize the CUDA driver API interface
 //
 
-static void initialize_cuda(int device_number,const char *cubin_file_name,const char *kernel_name,u32_t data_size,u32_t hash_size)
+static void
+initialize_cuda(int device_number, const char *cubin_file_name, const char *kernel_name, u32_t data_size, u32_t hash_size)
 {
   //
   // initialize the driver API interface

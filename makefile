@@ -17,8 +17,9 @@ OPENCL_DIR = $(CUDA_DIR)
 #   RTX A2000 Ada --------- sm_86
 #   RTX A6000 Ada --------- sm_86
 #   RTX 4070 -------------- sm_89
+#   GTX 1050 -------------- sm_61
 #
-CUDA_ARCH = sm_86
+CUDA_ARCH = sm_61
 
 # Source and header files
 SRC       = deti_coins.c
@@ -70,7 +71,7 @@ deti_coins_apple: $(SRC) $(H_FILES)
 #
 deti_coins_intel_cuda: deti_coins.o md5_cuda_kernel.cubin deti_coins_cuda_kernel_search.cubin
 	cc -Wall -O2 -fopenmp -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include deti_coins.o -o deti_coins_intel_cuda \
-		-L$(CUDA_DIR)/lib64 -lcuda -lcudart
+		-L$(CUDA_DIR)/lib64 -lcuda
 
 deti_coins.o: $(SRC) $(H_FILES)
 	cc -Wall -O2 -fopenmp -mavx2 -DUSE_CUDA=1 -I$(CUDA_DIR)/include -c $(SRC) -o deti_coins.o
@@ -78,6 +79,6 @@ deti_coins.o: $(SRC) $(H_FILES)
 md5_cuda_kernel.cubin: includes/md5.h md5_cuda_kernel.cu
 	nvcc -arch=$(CUDA_ARCH) --compiler-options -O2,-Wall -I$(CUDA_DIR)/include --cubin md5_cuda_kernel.cu -o md5_cuda_kernel.cubin
 
-deti_coins_cuda_kernel_search.cubin: includes/md5.h includes/cuda/deti_coins_cuda_search.cu
-	nvcc -arch=$(CUDA_ARCH) --compiler-options -O2,-Wall -I$(CUDA_DIR)/include --cubin includes/cuda/deti_coins_cuda_search.cu -o deti_coins_cuda_kernel_search.cubin
+deti_coins_cuda_kernel_search.cubin: includes/md5.h deti_coins_cuda_kernel_search.cu
+	nvcc -arch=$(CUDA_ARCH) --compiler-options -O2,-Wall -I$(CUDA_DIR)/include --cubin deti_coins_cuda_kernel_search.cu -o deti_coins_cuda_kernel_search.cubin
 
