@@ -75,12 +75,6 @@ static void deti_coins_cpu_avx512_search(u32_t n_random_words, bool is_client)
                     carry = 0;
                 }
             }
-
-            // If we've exhausted the search space, generate new random content
-            if (carry)
-            {
-                init_coin_template_avx512(bytes, lane, n_random_words);
-            }
         }
 
         n_attempts += 16ul;

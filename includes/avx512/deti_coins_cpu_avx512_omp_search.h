@@ -88,11 +88,6 @@ static void deti_coins_cpu_avx512_omp_search(u32_t n_random_words, bool is_clien
                         carry = 0;
                     }
                 }
-
-                if (carry)
-                {
-                    init_coin_template_avx512(bytes, lane, n_random_words);
-                }
             }
 
             thread_attempts += 16ul;
