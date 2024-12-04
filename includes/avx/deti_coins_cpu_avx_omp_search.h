@@ -91,7 +91,7 @@ static void deti_coins_cpu_avx_omp_search(u32_t n_random_words, bool is_client)
 
                 if (carry)
                 {
-                    init_coin_special_template_avx2(bytes, lane, search_string);
+                    init_coin_template_avx(bytes, lane, n_random_words);
                 }
             }
 
