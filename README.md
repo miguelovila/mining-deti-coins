@@ -2,6 +2,8 @@
 
 A DETI coin is a 52-byte message whose MD5 hash ends in at least eight hexadecimal zeros. Finding one takes about 4.3 billion attempts on average. That makes a small search loop an interesting performance problem: how many candidates can you test with the hardware you have?
 
+![Mining DETI Coins cover image](images/cover-image.png)
+
 This project explores that question in C and CUDA, with SIMD instructions, OpenMP, a TCP server for collecting results from multiple machines, and a separate WebAssembly version. The original experiments ranged from roughly **9.76 million attempts per second on a single CPU thread to 4.54 billion on a GTX 1050 Mobile GPU**.
 
 I built it with **Matilde Teixeira** in 2024 for High Performance Architectures at the University of Aveiro. We extended the supplied reference code with more search implementations, wider vectors, multicore execution, and networked mining.
